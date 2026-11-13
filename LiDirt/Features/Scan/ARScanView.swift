@@ -2,14 +2,20 @@ import SwiftUI
 import RealityKit
 import ARKit
 import AVFoundation
+import simd
 
 /// RealityKit `ARView` wrapper. Real ARKit path for device; simulator shows placeholder (no fake DEM).
 struct ARScanView: UIViewRepresentable {
     @ObservedObject var pipeline: CapturePipeline
     var onCameraPermissionDenied: (() -> Void)?
+    var onCameraTransform: ((simd_float4x4) -> Void)?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(pipeline: pipeline, onCameraPermissionDenied: onCameraPermissionDenied)
+        Coordinator(
+            pipeline: pipeline,
+            onCameraPermissionDenied: onCameraPermissionDenied,
+            onCameraTransform: onCameraTransform
+        )
     }
 
     func makeUIView(context: Context) -> ARView {
@@ -21,6 +27,7 @@ struct ARScanView: UIViewRepresentable {
 
     func updateUIView(_ uiView: ARView, context: Context) {
         context.coordinator.pipeline = pipeline
+        context.coordinator.onCameraTransform = onCameraTransform
     }
 
     static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
@@ -30,12 +37,18 @@ struct ARScanView: UIViewRepresentable {
     final class Coordinator: NSObject, ARSessionDelegate {
         var pipeline: CapturePipeline
         var onCameraPermissionDenied: (() -> Void)?
+        var onCameraTransform: ((simd_float4x4) -> Void)?
         private weak var arView: ARView?
         private var isRunning = false
 
-        init(pipeline: CapturePipeline, onCameraPermissionDenied: (() -> Void)?) {
+        init(
+            pipeline: CapturePipeline,
+            onCameraPermissionDenied: (() -> Void)?,
+            onCameraTransform: ((simd_float4x4) -> Void)?
+        ) {
             self.pipeline = pipeline
             self.onCameraPermissionDenied = onCameraPermissionDenied
+            self.onCameraTransform = onCameraTransform
         }
 
         func attach(to arView: ARView) {
@@ -72,6 +85,11 @@ struct ARScanView: UIViewRepresentable {
         }
 
         func session(_ session: ARSession, didUpdate frame: ARFrame) {
+            let transform = frame.camera.transform
+            Task { @MainActor in
+                onCameraTransform?(transform)
+            }
+
             let state = frame.camera.trackingState
             let allowed: Bool
             let description: String

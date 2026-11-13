@@ -40,6 +40,8 @@ final class MetadataCodecTests: XCTestCase {
         XCTAssertEqual(decoded, metadata)
         XCTAssertEqual(decoded.scanId, scanId.uuidString)
         XCTAssertEqual(decoded.georef.method, "none")
+        XCTAssertEqual(decoded.georef.heading.source, "unavailable")
+        XCTAssertFalse(decoded.frame.alignedToNorth)
         XCTAssertEqual(decoded.frame.rowDirection, "+Z")
         XCTAssertEqual(decoded.frame.columnDirection, "+X")
     }

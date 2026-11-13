@@ -77,6 +77,14 @@ final class UploadQueue: ObservableObject {
         await process(at: index)
     }
 
+    func remove(_ id: UUID) {
+        if let item = items.first(where: { $0.id == id }) {
+            try? fileManager.removeItem(at: URL(fileURLWithPath: item.packageDirectory, isDirectory: true))
+        }
+        items.removeAll { $0.id == id }
+        persist()
+    }
+
     private func process(at index: Int) async {
         items[index].status = .uploading
         items[index].attemptCount += 1

@@ -19,4 +19,9 @@ final class LocalScanStore: Sendable {
     func packageURL(for scanId: UUID) -> URL {
         paths.scanPackageDirectory(scanId: scanId)
     }
+
+    func deletePackage(scanId: UUID) {
+        let url = packageURL(for: scanId)
+        try? fileManager.removeItem(at: url)
+    }
 }

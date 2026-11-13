@@ -20,12 +20,17 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 3. Set your Development Team under Signing & Capabilities.
 4. Build & Run.
 5. Sign in with any email (auth stub) → **New project** → **Start scan**.
-6. Walk the pad (aim for 2 passes), watch coverage HUD, **Finish scan** → review score → **Upload**.
+6. Allow location when prompted (optional; used for approximate north).
+7. Tap **Begin pass** (3–2–1 countdown) → walk → **End pass** → **Start next pass** → **Begin pass** again for multi-pass averaging → **Finish scan** → review → **Upload**.
+8. Delete finished scans from the project list (swipe) or review screen (confirm).
 
 ### Field tips
 
+- Do not walk until countdown finishes / Begin pass — sampling stays off until then.
+- Green on the coverage tint means the **sample goal is met** (≥8 samples/cell), not “touched once.” Amber = incomplete.
 - Move at a steady walking pace; pause if tracking says “Move slower / better light.”
-- Revisit thin (amber) areas for multi-pass averaging.
+- Revisit amber areas; end/start passes yourself for multi-pass averaging.
+- North alignment uses phone GPS/compass when authorized — approximate, not survey-grade. Deny location to keep a local AR frame.
 - Score &lt; 50 blocks upload by default; you can confirm “Upload anyway.”
 - Footer copy: *Field grade estimating. Not a certified survey.*
 

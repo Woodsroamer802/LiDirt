@@ -40,6 +40,9 @@
 		847D2720C67944D69500B82B /* MetadataCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473E3E8F5D83435B80B69B37 /* MetadataCodecTests.swift */; };
 		E5D7AACCA2C7400D8C9E4444 /* QualityScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6991E3CE7AA84587AA238DBC /* QualityScorerTests.swift */; };
 		BA0C733BFF76499DA2ED47A0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A428A6B935064C45B4E43B5D /* Assets.xcassets */; };
+		662BEB14343D4F638AA0CCCE /* ScanOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21FEDDDF3B047CB80D2C6F9 /* ScanOrientation.swift */; };
+		FCF9EC0EC2D84CA29D1934E9 /* CoverageOverlayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85D62C6EAC04A0B9FB5A1C7 /* CoverageOverlayTests.swift */; };
+		841621153A8F4E9093D971A0 /* NorthAlignMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC800DEE2CE2456EB9A05123 /* NorthAlignMathTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -80,6 +83,9 @@
 		6991E3CE7AA84587AA238DBC /* QualityScorerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityScorerTests.swift; sourceTree = "<group>"; };
 		A428A6B935064C45B4E43B5D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E53B0E417041484C8B3F7F4E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C21FEDDDF3B047CB80D2C6F9 /* ScanOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanOrientation.swift; sourceTree = "<group>"; };
+		F85D62C6EAC04A0B9FB5A1C7 /* CoverageOverlayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverageOverlayTests.swift; sourceTree = "<group>"; };
+		EC800DEE2CE2456EB9A05123 /* NorthAlignMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NorthAlignMathTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +131,7 @@
 				EE81FDDA247544E094E3B5D0,
 				CFAAAC86EE7F4FFF8B7DC987,
 				F61F7CC1F3FC45CAAFC6DBB0,
+				C21FEDDDF3B047CB80D2C6F9 /* ScanOrientation.swift */,
 			);
 			path = Scan;
 			sourceTree = "<group>";
@@ -225,6 +232,8 @@
 				ED45C59B25CE47D3A60F2636,
 				473E3E8F5D83435B80B69B37,
 				6991E3CE7AA84587AA238DBC,
+				F85D62C6EAC04A0B9FB5A1C7 /* CoverageOverlayTests.swift */,
+				EC800DEE2CE2456EB9A05123 /* NorthAlignMathTests.swift */,
 			);
 			path = LiDirtTests;
 			sourceTree = "<group>";
@@ -367,6 +376,7 @@
 				732EA26B1BD54B27934C8031 /* Endpoints.swift in Sources */,
 				8524564309F445DA97BF61B8 /* FilePaths.swift in Sources */,
 				26EC437C21C5458AA82871F1 /* LocalScanStore.swift in Sources */,
+				662BEB14343D4F638AA0CCCE /* ScanOrientation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,6 +387,8 @@
 				58F35C424B214E9FB7AC05D7 /* DEMBuilderTests.swift in Sources */,
 				847D2720C67944D69500B82B /* MetadataCodecTests.swift in Sources */,
 				E5D7AACCA2C7400D8C9E4444 /* QualityScorerTests.swift in Sources */,
+				FCF9EC0EC2D84CA29D1934E9 /* CoverageOverlayTests.swift in Sources */,
+				841621153A8F4E9093D971A0 /* NorthAlignMathTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
