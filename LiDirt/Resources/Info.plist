@@ -24,6 +24,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>LiDirt uses the camera and LiDAR to capture field grade site surfaces for cut/fill volume estimating. Not a certified survey.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LiDirt uses GPS and compass heading to roughly orient the scan toward true north. Phone location is approximate and not survey-grade.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>LiDirt uses GPS and compass heading to roughly orient the scan toward true north. Phone location is approximate and not survey-grade.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

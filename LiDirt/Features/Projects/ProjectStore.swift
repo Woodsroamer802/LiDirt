@@ -67,6 +67,18 @@ final class ProjectStore: ObservableObject {
         persist()
     }
 
+    @discardableResult
+    func deleteScanSummary(projectId: UUID, scanId: UUID) -> ScanSummary? {
+        guard let pIndex = projects.firstIndex(where: { $0.id == projectId }),
+              let sIndex = projects[pIndex].scanSummaries.firstIndex(where: { $0.id == scanId }) else {
+            return nil
+        }
+        let removed = projects[pIndex].scanSummaries.remove(at: sIndex)
+        projects[pIndex].updatedAt = Date()
+        persist()
+        return removed
+    }
+
     private var projectsFileURL: URL {
         paths.projectsDirectory.appendingPathComponent("projects.json")
     }

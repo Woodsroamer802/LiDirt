@@ -27,6 +27,7 @@ struct ScanMetadata: Codable, Equatable, Sendable {
         var boundsMax: Vec3
         var rowDirection: String
         var columnDirection: String
+        var alignedToNorth: Bool
     }
 
     struct CaptureInfo: Codable, Equatable, Sendable {
@@ -54,6 +55,14 @@ struct ScanMetadata: Codable, Equatable, Sendable {
         var horizontalAccuracyM: Double?
     }
 
+    struct HeadingInfo: Codable, Equatable, Sendable {
+        var degrees: Double?
+        var accuracyDegrees: Double?
+        var source: String
+        var northAlignYawRadians: Double?
+        var disclaimer: String
+    }
+
     struct GeorefHooks: Codable, Equatable, Sendable {
         var usGisReady: Bool
         var controlPointsCount: Int
@@ -62,6 +71,7 @@ struct ScanMetadata: Codable, Equatable, Sendable {
     struct GeorefInfo: Codable, Equatable, Sendable {
         var method: String
         var gpsApprox: GPSApprox
+        var heading: HeadingInfo
         var hooks: GeorefHooks
     }
 
@@ -99,10 +109,12 @@ enum ScanPackageWriter {
         minSamplesPerCell: Int,
         preferredContourIntervalInches: Double,
         controlPointsCount: Int,
-        hasLiDAR: Bool
+        hasLiDAR: Bool,
+        orientation: ScanOrientationSnapshot = .unavailable
     ) -> ScanMetadata {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
+        let aligned = orientation.frameAlignedToNorth
         return ScanMetadata(
             schemaVersion: 1,
             scanId: scanId.uuidString,
@@ -130,8 +142,9 @@ enum ScanPackageWriter {
                     y: heightmap.bounds.maxY,
                     z: heightmap.bounds.maxZ
                 ),
-                rowDirection: "+Z",
-                columnDirection: "+X"
+                rowDirection: aligned ? "+North (+Z)" : "+Z",
+                columnDirection: aligned ? "+East (+X)" : "+X",
+                alignedToNorth: aligned
             ),
             capture: .init(
                 passCount: metrics.passCount,
@@ -150,8 +163,19 @@ enum ScanPackageWriter {
                 productLanguage: "field_grade_volume_estimating"
             ),
             georef: .init(
-                method: "none",
-                gpsApprox: .init(lat: nil, lon: nil, horizontalAccuracyM: nil),
+                method: orientation.method,
+                gpsApprox: .init(
+                    lat: orientation.latitude,
+                    lon: orientation.longitude,
+                    horizontalAccuracyM: orientation.horizontalAccuracyM
+                ),
+                heading: .init(
+                    degrees: orientation.headingDegrees,
+                    accuracyDegrees: orientation.headingAccuracyDegrees,
+                    source: orientation.headingSource,
+                    northAlignYawRadians: orientation.northAlignYawRadians,
+                    disclaimer: orientation.disclaimer
+                ),
                 hooks: .init(usGisReady: false, controlPointsCount: controlPointsCount)
             ),
             disclaimer: disclaimer

@@ -1,15 +1,16 @@
 import SwiftUI
+import simd
 
 struct ScanSessionView: View {
     @StateObject private var viewModel: ScanSessionViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    var onFinished: (UUID, HeightmapResult?, QualityMetrics, TimeInterval, [ControlPin], UUID) -> Void
+    var onFinished: (UUID, HeightmapResult?, QualityMetrics, TimeInterval, [ControlPin], UUID, ScanOrientationSnapshot) -> Void
 
     init(
         projectId: UUID,
-        onFinished: @escaping (UUID, HeightmapResult?, QualityMetrics, TimeInterval, [ControlPin], UUID) -> Void
+        onFinished: @escaping (UUID, HeightmapResult?, QualityMetrics, TimeInterval, [ControlPin], UUID, ScanOrientationSnapshot) -> Void
     ) {
         _viewModel = StateObject(wrappedValue: ScanSessionViewModel(projectId: projectId))
         self.onFinished = onFinished
@@ -22,7 +23,10 @@ struct ScanSessionView: View {
             #else
             ARScanView(
                 pipeline: viewModel.pipeline,
-                onCameraPermissionDenied: { viewModel.showCameraDenied = true }
+                onCameraPermissionDenied: { viewModel.showCameraDenied = true },
+                onCameraTransform: { transform in
+                    viewModel.latestCameraTransform = transform
+                }
             )
             .ignoresSafeArea()
             #endif
@@ -30,6 +34,9 @@ struct ScanSessionView: View {
             VStack(spacing: 0) {
                 topHUD
                 Spacer()
+                if case .countdown(let n) = viewModel.pipeline.passPhase {
+                    countdownOverlay(n)
+                }
                 if viewModel.pipeline.thermalWarning {
                     Text("Device warm; quality may drop.")
                         .font(LiDirtTypography.caption)
@@ -43,6 +50,7 @@ struct ScanSessionView: View {
             }
         }
         .onAppear { viewModel.onAppear() }
+        .onDisappear { viewModel.onDisappear() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 viewModel.handleBackground()
@@ -52,7 +60,7 @@ struct ScanSessionView: View {
             guard finished else { return }
             let metrics = viewModel.completedMetrics ?? QualityMetrics(
                 coverageRatio: 0, meanSampleCount: 0, rmsResidualM: 0,
-                holeRatio: 1, passCount: viewModel.pipeline.passCount, qualityScore: 0
+                holeRatio: 1, passCount: viewModel.pipeline.completedPassCount, qualityScore: 0
             )
             onFinished(
                 viewModel.scanId,
@@ -60,7 +68,8 @@ struct ScanSessionView: View {
                 metrics,
                 viewModel.durationSec,
                 viewModel.pipeline.controlPins,
-                viewModel.projectId
+                viewModel.projectId,
+                viewModel.completedOrientation
             )
         }
         .alert("Camera access needed", isPresented: $viewModel.showCameraDenied) {
@@ -97,16 +106,20 @@ struct ScanSessionView: View {
             }
 
             HStack(spacing: 16) {
-                metricChip(title: "Area", value: viewModel.areaLabel)
+                metricChip(title: "Goal area", value: viewModel.areaLabel)
                 metricChip(
-                    title: "Cells",
-                    value: String(format: "%.0f%%", viewModel.pipeline.cellsFilledPercent)
+                    title: "Goal met",
+                    value: String(format: "%.0f%%", viewModel.pipeline.goalMetPercent)
                 )
                 metricChip(
                     title: "Residual",
                     value: String(format: "%.1f cm", viewModel.pipeline.meanResidualM * 100)
                 )
             }
+
+            Text(viewModel.phaseHint)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textSecondary)
 
             Text(viewModel.pipeline.trackingStateDescription)
                 .font(LiDirtTypography.caption)
@@ -115,6 +128,10 @@ struct ScanSessionView: View {
                     ? LiDirtColors.coverageGood
                     : LiDirtColors.coverageThin
                 )
+
+            Text(viewModel.orientationService.statusMessage)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
 
             CoverageLegendView()
         }
@@ -127,18 +144,7 @@ struct ScanSessionView: View {
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
 
-            HStack(spacing: 10) {
-                if viewModel.pipeline.isPaused || !viewModel.pipeline.isSampling {
-                    Button("Resume") { viewModel.resume() }
-                        .buttonStyle(LiDirtPrimaryButtonStyle())
-                } else {
-                    Button("Pause") { viewModel.pause() }
-                        .buttonStyle(LiDirtSecondaryButtonStyle())
-                }
-
-                Button("Next pass") { viewModel.nextPass() }
-                    .buttonStyle(LiDirtSecondaryButtonStyle())
-            }
+            passControls
 
             HStack(spacing: 10) {
                 Button("Mark pin") { viewModel.markPin() }
@@ -155,6 +161,49 @@ struct ScanSessionView: View {
                 endPoint: .bottom
             )
         )
+    }
+
+    @ViewBuilder
+    private var passControls: some View {
+        switch viewModel.pipeline.passPhase {
+        case .awaitingBegin:
+            Button("Begin pass") { viewModel.beginPass() }
+                .buttonStyle(LiDirtPrimaryButtonStyle())
+
+        case .countdown:
+            Button("Cancel countdown") { viewModel.cancelCountdown() }
+                .buttonStyle(LiDirtSecondaryButtonStyle())
+
+        case .sampling:
+            HStack(spacing: 10) {
+                Button("Pause") { viewModel.pause() }
+                    .buttonStyle(LiDirtSecondaryButtonStyle())
+                Button("End pass") { viewModel.endPass() }
+                    .buttonStyle(LiDirtPrimaryButtonStyle())
+            }
+
+        case .paused:
+            HStack(spacing: 10) {
+                Button("Resume") { viewModel.resume() }
+                    .buttonStyle(LiDirtPrimaryButtonStyle())
+                Button("End pass") { viewModel.endPass() }
+                    .buttonStyle(LiDirtSecondaryButtonStyle())
+            }
+
+        case .passEnded:
+            Button("Start next pass") { viewModel.startNextPass() }
+                .buttonStyle(LiDirtSecondaryButtonStyle())
+        }
+    }
+
+    private func countdownOverlay(_ n: Int) -> some View {
+        Text("\(n)")
+            .font(.system(size: 96, weight: .bold, design: .rounded))
+            .foregroundStyle(LiDirtColors.constructionYellow)
+            .padding(28)
+            .background(.ultraThinMaterial, in: Circle())
+            .padding(.bottom, 24)
+            .accessibilityLabel("Starting in \(n)")
     }
 
     private func metricChip(title: String, value: String) -> some View {

@@ -12,7 +12,9 @@ targets:
     type: application
     platform: iOS
     sources:
-      - LiDirt
+      - path: LiDirt
+        excludes:
+          - "**/*.md"
     settings:
       INFOPLIST_FILE: LiDirt/Resources/Info.plist
       PRODUCT_BUNDLE_IDENTIFIER: com.lidirt.app

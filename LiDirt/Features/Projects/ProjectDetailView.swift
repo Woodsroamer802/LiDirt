@@ -9,6 +9,8 @@ struct ProjectDetailView: View {
     @State private var reviewPayload: ReviewPayload?
     @State private var uploadScanId: UUID?
     @State private var showUpload = false
+    @State private var pendingDelete: ScanSummary?
+    @State private var showDeleteConfirm = false
 
     private var project: Project? {
         environment.projectStore.project(id: projectId)
@@ -27,15 +29,28 @@ struct ProjectDetailView: View {
         .navigationTitle(project?.name ?? "Project")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showScan) {
-            ScanSessionView(projectId: projectId) { scanId, heightmap, metrics, duration, pins, projectId in
+            ScanSessionView(projectId: projectId) { scanId, heightmap, metrics, duration, pins, projectId, orientation in
                 showScan = false
+                let summary = ScanSummary(
+                    id: scanId,
+                    projectId: projectId,
+                    qualityScore: metrics.qualityScore,
+                    coverageRatio: metrics.coverageRatio,
+                    passCount: metrics.passCount,
+                    uploadStatus: .localOnly,
+                    localPackagePath: nil
+                )
+                if environment.projectStore.project(id: projectId)?.scanSummaries.contains(where: { $0.id == scanId }) != true {
+                    environment.projectStore.addScanSummary(summary)
+                }
                 reviewPayload = ReviewPayload(
                     scanId: scanId,
                     projectId: projectId,
                     heightmap: heightmap,
                     metrics: metrics,
                     durationSec: duration,
-                    controlPins: pins
+                    controlPins: pins,
+                    orientation: orientation
                 )
             }
         }
@@ -48,12 +63,17 @@ struct ProjectDetailView: View {
                 durationSec: payload.durationSec,
                 controlPins: payload.controlPins,
                 preferredContourIntervalInches: environment.preferredContourIntervalInches,
+                orientation: payload.orientation,
                 onUpload: { beginUpload(payload, force: false) },
                 onRescan: {
                     reviewPayload = nil
                     startScanOrBlock()
                 },
-                onUploadAnyway: { beginUpload(payload, force: true) }
+                onUploadAnyway: { beginUpload(payload, force: true) },
+                onDelete: {
+                    deleteScan(scanId: payload.scanId, projectId: payload.projectId)
+                    reviewPayload = nil
+                }
             )
         }
         .sheet(isPresented: $showUpload) {
@@ -69,6 +89,17 @@ struct ProjectDetailView: View {
             NavigationStack {
                 UnsupportedDeviceView(onViewProjects: { showUnsupported = false })
             }
+        }
+        .alert("Delete this scan?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let pendingDelete {
+                    deleteScan(scanId: pendingDelete.id, projectId: pendingDelete.projectId)
+                }
+                pendingDelete = nil
+            }
+        } message: {
+            Text("Removes the local package and list entry. This cannot be undone.")
         }
     }
 
@@ -116,6 +147,12 @@ struct ProjectDetailView: View {
                         .foregroundStyle(LiDirtColors.textMuted)
                     }
                     .listRowBackground(LiDirtColors.gunmetalElevated)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button("Delete", role: .destructive) {
+                            pendingDelete = scan
+                            showDeleteConfirm = true
+                        }
+                    }
                 }
             }
         }
@@ -141,6 +178,12 @@ struct ProjectDetailView: View {
         }
     }
 
+    private func deleteScan(scanId: UUID, projectId: UUID) {
+        _ = environment.projectStore.deleteScanSummary(projectId: projectId, scanId: scanId)
+        environment.localScanStore.deletePackage(scanId: scanId)
+        environment.uploadQueue.remove(scanId)
+    }
+
     private func beginUpload(_ payload: ReviewPayload, force: Bool) {
         guard let heightmap = payload.heightmap else { return }
         _ = force
@@ -154,7 +197,8 @@ struct ProjectDetailView: View {
             minSamplesPerCell: DEMBuilder.defaultMinSamplesPerCell,
             preferredContourIntervalInches: environment.preferredContourIntervalInches,
             controlPointsCount: payload.controlPins.count,
-            hasLiDAR: DeviceCapability.supportsLiDARSceneReconstruction
+            hasLiDAR: DeviceCapability.supportsLiDARSceneReconstruction,
+            orientation: payload.orientation
         )
 
         let dir = environment.localScanStore.packageURL(for: payload.scanId)
@@ -188,18 +232,15 @@ struct ProjectDetailView: View {
             uploadScanId = payload.scanId
             showUpload = true
             let scanId = payload.scanId
-            let projectId = payload.projectId
             Task {
                 await environment.uploadQueue.processAll()
                 if let accepted = environment.uploadQueue.items.first(where: { $0.id == scanId }) {
                     var updated = summary
                     updated.uploadStatus = accepted.status
                     environment.projectStore.updateScanSummary(updated)
-                    _ = projectId
                 }
             }
         } catch {
-            // Keep operator on review; surface via upload sheet failure after enqueue attempt.
             uploadScanId = payload.scanId
             showUpload = true
         }
@@ -214,6 +255,7 @@ struct ReviewPayload: Identifiable, Hashable {
     var metrics: QualityMetrics
     var durationSec: TimeInterval
     var controlPins: [ControlPin]
+    var orientation: ScanOrientationSnapshot
 
     static func == (lhs: ReviewPayload, rhs: ReviewPayload) -> Bool {
         lhs.scanId == rhs.scanId
