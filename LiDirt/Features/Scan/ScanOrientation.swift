@@ -166,9 +166,7 @@ final class ScanOrientationService: NSObject, ObservableObject {
             )
             aligned = true
             method = location != nil ? "phone_compass_gps" : "phone_compass"
-            statusMessage = aligned
-                ? "North aligned (phone compass — approximate)"
-                : statusMessage
+            statusMessage = "North aligned (phone compass — approximate)"
         } else if location != nil {
             method = "phone_gps"
             statusMessage = "GPS only — no heading for north align"
