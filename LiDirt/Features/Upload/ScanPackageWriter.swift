@@ -199,7 +199,7 @@ enum ScanPackageWriter {
         let metaData = try encoder.encode(metadata)
         try metaData.write(to: metadataURL, options: .atomic)
 
-        var floats = heightmap.elevations
+        let floats = heightmap.elevations
         let byteCount = floats.count * MemoryLayout<Float>.size
         let raw = floats.withUnsafeBufferPointer { Data(buffer: $0) }
         precondition(raw.count == byteCount)
