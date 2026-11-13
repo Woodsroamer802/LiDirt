@@ -9,11 +9,9 @@ struct LocalScanRecord: Codable, Identifiable, Sendable {
 
 final class LocalScanStore: Sendable {
     private let paths: FilePaths
-    private let fileManager: FileManager
 
-    init(paths: FilePaths, fileManager: FileManager = .default) {
+    init(paths: FilePaths) {
         self.paths = paths
-        self.fileManager = fileManager
     }
 
     func packageURL(for scanId: UUID) -> URL {
@@ -21,7 +19,7 @@ final class LocalScanStore: Sendable {
     }
 
     func deletePackage(scanId: UUID) {
-        let url = packageURL(for: scanId)
-        try? fileManager.removeItem(at: url)
+        // FileManager is not Sendable; use the shared default at the call site.
+        try? FileManager.default.removeItem(at: packageURL(for: scanId))
     }
 }
