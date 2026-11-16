@@ -7,6 +7,7 @@ enum GISDisclaimer {
     static let dataLimits =
         "USGS topo tiles are public. Parcel lines come from the configured open government / county GIS source (or none if unset). Coverage and accuracy vary widely by county. Phone GPS is meters-class."
 
-    static let notOnX =
-        "LiDirt is not OnX and does not ship a licensed nationwide private-parcel database. Plug in your county’s public parcel FeatureServer or GeoJSON for local boundaries."
+    /// Clarifies that LiDirt does not include a built-in nationwide parcel database.
+    static let noNationwideParcels =
+        "LiDirt does not include a nationwide private-parcel database. Add your county’s public parcel FeatureServer or GeoJSON in Settings for local boundary lines."
 }

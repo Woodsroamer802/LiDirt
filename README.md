@@ -103,7 +103,7 @@ From a project, open **Site map (GIS / boundaries)**:
 - Optional **USGS topo** tile overlay (public National Map)
 - Optional **parcel / boundary** polygons from a URL you set in **Settings → GIS / property lines** (county ArcGIS FeatureServer layer root, or GeoJSON)
 
-This is **OnX-like awareness**, not OnX: LiDirt does not ship a licensed nationwide private-parcel database. Boundaries are approximate and for helping avoid accidental trespass — not a survey or title opinion.
+Boundary lines are approximate trespass-awareness only — not a survey or title opinion. LiDirt does not include a nationwide private-parcel database; set a county public parcel URL in Settings when you need local lines.
 
 ## Out of scope (still deferred)
 
