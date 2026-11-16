@@ -79,7 +79,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         guard !url.isEmpty else {
             parcels = []
             parcelError = nil
-            statusMessage = "Set a county parcel FeatureServer URL in Settings for boundary lines."
+            statusMessage = "Search county/ZIP in Settings to load property boundary lines."
             updateTrespassWarning()
             return
         }
