@@ -19,11 +19,25 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 2. Select the **LiDirt** scheme and your physical Pro device (not Simulator for capture).
 3. Set your Development Team under Signing & Capabilities.
 4. Build & Run.
-5. Sign in with any email (auth stub) → **New project** → **Start scan**.
-6. Allow location when prompted (optional; used for approximate north).
-7. Tap **Begin pass** (3–2–1 countdown) → walk → **End pass** → **Start next pass** → **Begin pass** again for multi-pass averaging → **Finish scan** → review → **Upload**.
-8. Delete finished scans from the project list (swipe) or review screen (confirm).
-9. Delete whole projects from the project list (swipe) or project detail (**Delete project**).
+5. You should briefly see **LiDirt** + a spinner, then the email stub login (gunmetal + yellow). Enter any email → **Continue**.
+6. **New project** → **Start scan**.
+7. Allow location when prompted (optional; used for approximate north).
+8. Tap **Begin pass** (3–2–1 countdown) → walk → **End pass** → **Start next pass** → **Begin pass** again for multi-pass averaging → **Finish scan** → review → **Upload**.
+9. Delete finished scans from the project list (swipe) or review screen (confirm).
+10. Delete whole projects from the project list (swipe) or project detail (**Delete project**).
+
+### Grey screen / “Taking longer than expected”
+
+That Xcode banner usually means the **debugger is still attaching**, not that LiDirt crashed. The first paint is gunmetal (brand) — if it never shows yellow **LiDirt** text, launch/debug is stuck.
+
+Try in order:
+
+1. Use a **USB cable** (wireless debugging often hangs here). Unlock the phone and tap **Trust**.
+2. Stop the run → **Product → Clean Build Folder** → Run again.
+3. **Product → Scheme → Edit Scheme… → Run → Info** → uncheck **Debug executable** → Run. If the login screen appears, the app is fine and only LLDB attach was stuck; re-enable Debug later over USB.
+4. Reboot the phone, quit Xcode, replug USB, Run.
+5. Confirm **Signing & Capabilities** has your Team (not empty) and the phone is iOS 17+.
+6. Watch the Xcode console while launching — a red crash/exception means a different bug; copy that text.
 
 ### Field tips
 
