@@ -27,6 +27,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var offlineMeta: JobSiteOfflineMeta?
     @Published var offlineImage: UIImage?
     @Published var showOfflineViewer = false
+    @Published var addressText: String = ""
+    @Published var isGeocodingAddress = false
 
     let projectName: String
     let projectId: UUID?
@@ -49,6 +51,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
         contourSurfaceMode: ContourSurfaceMode = .smoothedGround,
         jobSite: JobSiteBounds? = nil,
+        initialAddress: String? = nil,
         elevationService: USGSElevationService = USGSElevationService(),
         offlineStore: JobSiteOfflineStore = JobSiteOfflineStore()
     ) {
@@ -59,6 +62,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         self.contourIntervalInches = max(contourIntervalInches, 0.01)
         self.contourSurfaceMode = contourSurfaceMode
         self.jobSite = jobSite
+        self.addressText = initialAddress ?? ""
         self.elevationService = elevationService
         self.offlineStore = offlineStore
 
@@ -210,6 +214,70 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         offlineMeta = nil
         offlineImage = nil
         statusMessage = "Offline Job Site removed."
+    }
+
+    /// Geocode an address, frame a Job Site, then download a topo snapshot (with LiDAR contours when available) for offline use.
+    func downloadTopoForAddress(halfSideMeters: Double = 75) {
+        let query = addressText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            offlineError = "Enter a street address or place name."
+            return
+        }
+        isGeocodingAddress = true
+        offlineProgress = "Looking up address…"
+        offlineError = nil
+        offlineTask?.cancel()
+        offlineTask = Task {
+            do {
+                let marks = try await CLGeocoder().geocodeAddressString(query)
+                guard let mark = marks.first, let location = mark.location else {
+                    throw JobSiteOfflineError.addressNotFound
+                }
+                if Task.isCancelled { return }
+                let coord = location.coordinate
+                let bounds = JobSiteBounds.square(center: coord, halfSideMeters: halfSideMeters)
+                applyJobSite(bounds)
+                region = bounds.region
+                userCoordinate = coord
+                isGeocodingAddress = false
+                offlineProgress = "Downloading topo for \(query)…"
+                // Rebuild contours for the new area (LiDAR still placed by scan GPS if present).
+                rebuildContours()
+                statusMessage = "Address found — downloading topo + LiDAR layer for offline…"
+                // Save offline package (topo snapshot layered with any LiDAR contours).
+                guard let projectId else {
+                    isGeocodingAddress = false
+                    offlineProgress = nil
+                    offlineError = "Open this map from a project to save offline topo."
+                    return
+                }
+                let meta = try await offlineStore.save(
+                    projectId: projectId,
+                    projectName: projectName,
+                    bounds: bounds,
+                    contourPolylines: contourPolylines,
+                    contourIntervalInches: contourIntervalInches,
+                    surfaceMode: contourSurfaceMode
+                ) { [weak self] message in
+                    Task { @MainActor in
+                        self?.offlineProgress = message
+                    }
+                }
+                if Task.isCancelled { return }
+                offlineMeta = meta
+                offlineImage = offlineStore.loadImage(projectId: projectId)
+                offlineProgress = nil
+                let lidarNote = contourPolylines.isEmpty
+                    ? "Topo only (no LiDAR contours yet — scan on site to refresh)."
+                    : "Topo + LiDAR contours layered."
+                statusMessage = "Offline Job Site ready for \(query). \(lidarNote)"
+            } catch {
+                if Task.isCancelled { return }
+                isGeocodingAddress = false
+                offlineProgress = nil
+                offlineError = error.localizedDescription
+            }
+        }
     }
 
     private func applyJobSite(_ bounds: JobSiteBounds?) {

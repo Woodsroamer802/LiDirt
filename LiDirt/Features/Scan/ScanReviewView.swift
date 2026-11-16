@@ -61,6 +61,7 @@ struct ScanReviewView: View {
                     contourIntervalInches: activeIntervalInches,
                     contourSurfaceMode: surfaceMode,
                     jobSite: environment.projectStore.project(id: projectId)?.jobSite,
+                    initialAddress: environment.projectStore.project(id: projectId)?.address,
                     onIntervalChange: { value in
                         activeIntervalInches = value
                         intervalText = String(format: "%g", value)
@@ -209,13 +210,13 @@ struct ScanReviewView: View {
                     applyInterval()
                     showTopoMap = true
                 } label: {
-                    Label("Open fused topo / LiDAR map", systemImage: "map")
+                    Label("Open Job Site map", systemImage: "map")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LiDirtSecondaryButtonStyle())
             }
 
-            Text("Type a contour interval (inches). Fused map uses USGS 3DEP as foundation plus this LiDAR DEM. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
+            Text("Type a contour interval (inches). Job Site map uses USGS 3DEP as foundation plus this LiDAR DEM. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
         }

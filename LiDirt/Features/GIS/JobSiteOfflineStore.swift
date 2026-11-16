@@ -21,12 +21,14 @@ enum JobSiteOfflineError: LocalizedError {
     case noJobSite
     case snapshotFailed
     case writeFailed
+    case addressNotFound
 
     var errorDescription: String? {
         switch self {
         case .noJobSite: return "Set a Job Site rectangle before saving offline."
         case .snapshotFailed: return "Could not capture the Job Site map snapshot."
         case .writeFailed: return "Could not write the offline Job Site image."
+        case .addressNotFound: return "Could not find that address. Try a fuller street address."
         }
     }
 }

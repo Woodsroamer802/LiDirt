@@ -6,6 +6,8 @@ struct SiteMapView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var intervalText: String
     @State private var showPrintSheet = false
+    @State private var showOptions = false
+    @State private var disclaimerMinimized = false
     var onIntervalChange: ((Double) -> Void)?
     var onSurfaceModeChange: ((ContourSurfaceMode) -> Void)?
     var onJobSiteChange: ((JobSiteBounds?) -> Void)?
@@ -18,6 +20,7 @@ struct SiteMapView: View {
         contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
         contourSurfaceMode: ContourSurfaceMode = .smoothedGround,
         jobSite: JobSiteBounds? = nil,
+        initialAddress: String? = nil,
         onIntervalChange: ((Double) -> Void)? = nil,
         onSurfaceModeChange: ((ContourSurfaceMode) -> Void)? = nil,
         onJobSiteChange: ((JobSiteBounds?) -> Void)? = nil
@@ -29,7 +32,8 @@ struct SiteMapView: View {
             orientation: orientation,
             contourIntervalInches: contourIntervalInches,
             contourSurfaceMode: contourSurfaceMode,
-            jobSite: jobSite
+            jobSite: jobSite,
+            initialAddress: initialAddress
         )
         vm.onSurfaceModeChange = onSurfaceModeChange
         vm.onJobSiteChange = onJobSiteChange
@@ -45,24 +49,52 @@ struct SiteMapView: View {
             SiteMapRepresentable(viewModel: viewModel)
                 .ignoresSafeArea(edges: .bottom)
 
-            VStack(alignment: .leading, spacing: 10) {
-                header
+            VStack(alignment: .leading, spacing: 8) {
+                compactHeader
                 Spacer()
                 footer
             }
-            .padding(16)
+            .padding(12)
         }
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
-        .navigationTitle("Fused site map")
+        .navigationTitle("Job Site map")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button("Print") { showPrintSheet = true }
+                Menu {
+                    Button {
+                        showOptions = true
+                    } label: {
+                        Label("Map options", systemImage: "slider.horizontal.3")
+                    }
+                    Button {
+                        showPrintSheet = true
+                    } label: {
+                        Label("Print", systemImage: "printer")
+                    }
                     .disabled(!viewModel.canExportPrint)
+                    if viewModel.hasOfflinePackage {
+                        Button {
+                            viewModel.openOfflineJobSite()
+                        } label: {
+                            Label("Open offline map", systemImage: "arrow.down.circle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(LiDirtColors.constructionYellow)
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Done") { dismiss() }
             }
+        }
+        .sheet(isPresented: $showOptions) {
+            JobSiteOptionsSheet(
+                viewModel: viewModel,
+                intervalText: $intervalText,
+                onApplyInterval: applyInterval
+            )
         }
         .sheet(isPresented: $showPrintSheet) {
             PrintMapSheet(viewModel: viewModel)
@@ -98,77 +130,40 @@ struct SiteMapView: View {
         } message: {
             Text(viewModel.offlineError ?? "")
         }
-        .onAppear { viewModel.onAppear() }
+        .onAppear {
+            viewModel.onAppear()
+            disclaimerMinimized = false
+            Task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    disclaimerMinimized = true
+                }
+            }
+        }
         .onDisappear { viewModel.onDisappear() }
     }
 
-    private var header: some View {
+    private var compactHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(viewModel.statusMessage)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textPrimary)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+            HStack(alignment: .top, spacing: 8) {
+                Text(viewModel.statusMessage)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 10) {
-                toggleChip("USGS topo", isOn: $viewModel.showTopo)
-                toggleChip("Fused contours", isOn: Binding(
-                    get: { viewModel.showContours },
-                    set: { newValue in
-                        viewModel.showContours = newValue
-                        viewModel.rebuildContours()
-                    }
-                ))
-                toggleChip("Job Site", isOn: $viewModel.showJobSiteOverlay)
-                if viewModel.isFusing || viewModel.isSavingOffline {
+                if viewModel.isFusing || viewModel.isSavingOffline || viewModel.isGeocodingAddress {
                     ProgressView()
                         .tint(LiDirtColors.constructionYellow)
                 }
-            }
 
-            jobSiteControls
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Ground detail")
-                    .font(LiDirtTypography.caption)
-                    .foregroundStyle(LiDirtColors.textSecondary)
-                Picker("Ground detail", selection: Binding(
-                    get: { viewModel.contourSurfaceMode },
-                    set: { viewModel.setContourSurfaceMode($0) }
-                )) {
-                    ForEach(ContourSurfaceMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
+                Button {
+                    showOptions = true
+                } label: {
+                    Image(systemName: "chevron.down.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(LiDirtColors.constructionYellow)
                 }
-                .pickerStyle(.segmented)
-                Text(viewModel.contourSurfaceMode.shortHelp)
-                    .font(LiDirtTypography.caption)
-                    .foregroundStyle(LiDirtColors.textMuted)
-            }
-            .padding(10)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-
-            HStack(spacing: 8) {
-                Text("Interval (in)")
-                    .font(LiDirtTypography.caption)
-                    .foregroundStyle(LiDirtColors.textSecondary)
-                TextField("0.125", text: $intervalText)
-                    .keyboardType(.decimalPad)
-                    .font(LiDirtTypography.mono)
-                    .foregroundStyle(LiDirtColors.textPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(LiDirtColors.gunmetalElevated, in: RoundedRectangle(cornerRadius: 8))
-                    .frame(maxWidth: 120)
-                Button("Apply") {
-                    applyInterval()
-                }
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.gunmetalDeep)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityLabel("Map options")
             }
             .padding(10)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
@@ -177,70 +172,47 @@ struct SiteMapView: View {
                 Text(progress)
                     .font(LiDirtTypography.caption)
                     .foregroundStyle(LiDirtColors.constructionYellow)
+                    .padding(.horizontal, 4)
             }
 
             if let note = viewModel.contourNote {
                 Text(note)
-                    .font(LiDirtTypography.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(LiDirtColors.gunmetalDeep)
-                    .padding(10)
+                    .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 10))
+                    .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 8))
             }
         }
-    }
-
-    private var jobSiteControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Job Site")
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textSecondary)
-            Text("Draw a rectangle over the work area for phone zoom. Save a high-res snapshot for offline pan / zoom / rotate.")
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    jobButton("From view") { viewModel.setJobSiteFromCurrentView() }
-                    jobButton("From scan") { viewModel.setJobSiteFromScan() }
-                    jobButton("~260 ft square") { viewModel.setSquareJobSite(halfSideMeters: 40) }
-                    jobButton("Zoom") { viewModel.zoomToJobSite() }
-                        .disabled(viewModel.jobSite == nil)
-                    jobButton("Clear", destructive: true) { viewModel.clearJobSite() }
-                        .disabled(viewModel.jobSite == nil)
-                }
-            }
-
-            HStack(spacing: 8) {
-                jobButton(viewModel.hasOfflinePackage ? "Update offline" : "Save offline") {
-                    viewModel.saveJobSiteOffline()
-                }
-                .disabled(viewModel.jobSite == nil || viewModel.isSavingOffline || viewModel.projectId == nil)
-
-                jobButton("Open offline") { viewModel.openOfflineJobSite() }
-                    .disabled(!viewModel.hasOfflinePackage)
-
-                if viewModel.hasOfflinePackage {
-                    jobButton("Delete offline", destructive: true) { viewModel.deleteOfflineJobSite() }
-                }
-            }
-
-            if viewModel.hasOfflinePackage, let meta = viewModel.offlineMeta {
-                Text("Offline ready · \(meta.imageWidthPx)×\(meta.imageHeightPx)px · \(meta.savedAt.formatted(date: .abbreviated, time: .shortened))")
-                    .font(LiDirtTypography.caption)
-                    .foregroundStyle(LiDirtColors.constructionYellow)
-            }
-        }
-        .padding(10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var footer: some View {
-        Text(GISDisclaimer.topoContours)
-            .font(LiDirtTypography.caption)
-            .foregroundStyle(LiDirtColors.textMuted)
-            .padding(12)
-            .background(LiDirtColors.gunmetalDeep.opacity(0.92), in: RoundedRectangle(cornerRadius: 12))
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                disclaimerMinimized.toggle()
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(disclaimerMinimized ? "Disclaimer" : "Planning aid — not a survey")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(LiDirtColors.textSecondary)
+                    Spacer()
+                    Image(systemName: disclaimerMinimized ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(LiDirtColors.textMuted)
+                }
+                if !disclaimerMinimized {
+                    Text(GISDisclaimer.topoContours)
+                        .font(.system(size: 10))
+                        .foregroundStyle(LiDirtColors.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(disclaimerMinimized ? 8 : 10)
+            .background(LiDirtColors.gunmetalDeep.opacity(0.92), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
     }
 
     private func applyInterval() {
@@ -254,51 +226,124 @@ struct SiteMapView: View {
         onIntervalChange?(viewModel.contourIntervalInches)
     }
 
-    private func toggleChip(_ title: String, isOn: Binding<Bool>) -> some View {
-        Button {
-            isOn.wrappedValue.toggle()
-        } label: {
-            Text(title)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(isOn.wrappedValue ? LiDirtColors.gunmetalDeep : LiDirtColors.constructionYellow)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule().fill(
-                        isOn.wrappedValue
-                        ? LiDirtColors.constructionYellow
-                        : LiDirtColors.gunmetalElevated
-                    )
-                )
-                .overlay(
-                    Capsule().stroke(LiDirtColors.constructionYellow, lineWidth: 1)
-                )
-        }
-    }
-
-    private func jobButton(
-        _ title: String,
-        destructive: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(destructive ? LiDirtColors.danger : LiDirtColors.gunmetalDeep)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(destructive ? LiDirtColors.gunmetalElevated : LiDirtColors.constructionYellow)
-                )
-        }
-    }
-
     private static func formatInterval(_ inches: Double) -> String {
         if inches < 1 {
             return String(format: "%g", inches)
         }
         return String(format: "%.2f", inches)
+    }
+}
+
+private struct JobSiteOptionsSheet: View {
+    @ObservedObject var viewModel: SiteMapViewModel
+    @Binding var intervalText: String
+    var onApplyInterval: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Layers") {
+                    Toggle("USGS topo", isOn: $viewModel.showTopo)
+                    Toggle("Fused contours", isOn: Binding(
+                        get: { viewModel.showContours },
+                        set: { newValue in
+                            viewModel.showContours = newValue
+                            viewModel.rebuildContours()
+                        }
+                    ))
+                    Toggle("Job Site rectangle", isOn: $viewModel.showJobSiteOverlay)
+                }
+
+                Section {
+                    TextField("Street address or place", text: $viewModel.addressText)
+                        .textInputAutocapitalization(.words)
+                    Button {
+                        viewModel.downloadTopoForAddress()
+                        dismiss()
+                    } label: {
+                        if viewModel.isGeocodingAddress || viewModel.isSavingOffline {
+                            ProgressView()
+                        } else {
+                            Label("Download topo for address", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    .disabled(
+                        viewModel.addressText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || viewModel.projectId == nil
+                        || viewModel.isGeocodingAddress
+                        || viewModel.isSavingOffline
+                    )
+                    Text("Looks up the address, frames a Job Site, and saves a high-res topo snapshot. LiDAR contours are layered when a scan is loaded — use offline at the job.")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                } header: {
+                    Text("Offline topo by address")
+                }
+
+                Section("Job Site") {
+                    Button("Set from current map view") { viewModel.setJobSiteFromCurrentView() }
+                    Button("Set from LiDAR scan") { viewModel.setJobSiteFromScan() }
+                    Button("Set ~500 ft square") { viewModel.setSquareJobSite(halfSideMeters: 75) }
+                    Button("Zoom to Job Site") { viewModel.zoomToJobSite() }
+                        .disabled(viewModel.jobSite == nil)
+                    Button("Clear Job Site", role: .destructive) { viewModel.clearJobSite() }
+                        .disabled(viewModel.jobSite == nil)
+                }
+
+                Section("Offline map") {
+                    Button(viewModel.hasOfflinePackage ? "Update offline snapshot" : "Save offline snapshot") {
+                        viewModel.saveJobSiteOffline()
+                    }
+                    .disabled(viewModel.jobSite == nil || viewModel.isSavingOffline || viewModel.projectId == nil)
+                    Button("Open offline map") { viewModel.openOfflineJobSite() }
+                        .disabled(!viewModel.hasOfflinePackage)
+                    if viewModel.hasOfflinePackage {
+                        Button("Delete offline map", role: .destructive) {
+                            viewModel.deleteOfflineJobSite()
+                        }
+                        if let meta = viewModel.offlineMeta {
+                            Text("Ready · \(meta.imageWidthPx)×\(meta.imageHeightPx)px · \(meta.savedAt.formatted(date: .abbreviated, time: .shortened))")
+                                .font(LiDirtTypography.caption)
+                                .foregroundStyle(LiDirtColors.textMuted)
+                        }
+                    }
+                }
+
+                Section("Ground detail") {
+                    Picker("Surface", selection: Binding(
+                        get: { viewModel.contourSurfaceMode },
+                        set: { viewModel.setContourSurfaceMode($0) }
+                    )) {
+                        ForEach(ContourSurfaceMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(viewModel.contourSurfaceMode.shortHelp)
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                }
+
+                Section("Contour interval") {
+                    HStack {
+                        TextField("Inches", text: $intervalText)
+                            .keyboardType(.decimalPad)
+                        Button("Apply", action: onApplyInterval)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(LiDirtColors.gunmetal.ignoresSafeArea())
+            .navigationTitle("Map options")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -310,7 +355,7 @@ private struct PrintMapSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Prints a fused contour plan (USGS 3DEP foundation + LiDAR detail) fitted to the sheet with title block, scale, and north arrow.")
+                    Text("Prints a fused contour plan fitted to the sheet with title block, scale, and north arrow.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textSecondary)
                 }
