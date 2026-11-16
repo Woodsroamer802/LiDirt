@@ -46,8 +46,14 @@ struct SiteMapView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            SiteMapRepresentable(viewModel: viewModel)
-                .ignoresSafeArea(edges: .bottom)
+            if viewModel.fusedMapOnly, let image = viewModel.fusedMapImage {
+                // Finished contour / hillshade only — avoids Apple tile pixelation at pad zoom.
+                ContourMapCanvas(image: image)
+                    .ignoresSafeArea(edges: .bottom)
+            } else {
+                SiteMapRepresentable(viewModel: viewModel)
+                    .ignoresSafeArea(edges: .bottom)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 if viewModel.isEditingJobSiteCrop {
@@ -88,6 +94,20 @@ struct SiteMapView: View {
                             Label("Adjust Job Site", systemImage: "crop.rotate")
                         }
                         Button {
+                            viewModel.openContourMapViewer()
+                        } label: {
+                            Label("Contour map", systemImage: "square.3.layers.3d.down.right")
+                        }
+                        .disabled(!viewModel.canOpenContourMap || viewModel.isBuildingFusedMap)
+                        Button {
+                            viewModel.setFusedMapOnly(!viewModel.fusedMapOnly)
+                        } label: {
+                            Label(
+                                viewModel.fusedMapOnly ? "Show street map" : "Fused map only",
+                                systemImage: viewModel.fusedMapOnly ? "map" : "map.fill"
+                            )
+                        }
+                        Button {
                             showPrintSheet = true
                         } label: {
                             Label("Print", systemImage: "printer")
@@ -126,7 +146,21 @@ struct SiteMapView: View {
                 OfflineJobSiteView(
                     projectName: viewModel.projectName,
                     image: image,
-                    meta: viewModel.offlineMeta
+                    meta: viewModel.offlineMeta,
+                    title: "Offline Job Site"
+                )
+            }
+        }
+        .sheet(isPresented: $viewModel.showContourMapViewer) {
+            if let image = viewModel.fusedMapImage ?? viewModel.offlineImage {
+                OfflineJobSiteView(
+                    projectName: viewModel.projectName,
+                    image: image,
+                    meta: viewModel.offlineMeta,
+                    title: "Contour map",
+                    subtitle: viewModel.lidarHeightmap == nil
+                        ? "USGS 3DEP hillshade + contours — sharp at pad zoom"
+                        : "Fused 3DEP + LiDAR contour map"
                 )
             }
         }
@@ -177,6 +211,16 @@ struct SiteMapView: View {
                     ProgressView()
                         .tint(LiDirtColors.constructionYellow)
                 }
+
+                Button {
+                    viewModel.openContourMapViewer()
+                } label: {
+                    Image(systemName: "square.3.layers.3d.down.right")
+                        .font(.title3)
+                        .foregroundStyle(LiDirtColors.constructionYellow)
+                }
+                .disabled(!viewModel.canOpenContourMap || viewModel.isBuildingFusedMap)
+                .accessibilityLabel("Contour map")
 
                 Button {
                     viewModel.beginJobSiteCropEdit()
@@ -297,6 +341,17 @@ private struct JobSiteOptionsSheet: View {
         NavigationStack {
             Form {
                 Section("Layers") {
+                    Button {
+                        dismiss()
+                        viewModel.openContourMapViewer()
+                    } label: {
+                        Label("Open contour map", systemImage: "square.3.layers.3d.down.right")
+                    }
+                    .disabled(!viewModel.canOpenContourMap || viewModel.isBuildingFusedMap)
+                    Toggle("Fused map only (hide street tiles)", isOn: Binding(
+                        get: { viewModel.fusedMapOnly },
+                        set: { viewModel.setFusedMapOnly($0) }
+                    ))
                     Toggle("Fused surface map", isOn: Binding(
                         get: { viewModel.showFusedSurfaceMap },
                         set: { newValue in
@@ -304,10 +359,11 @@ private struct JobSiteOptionsSheet: View {
                             viewModel.rebuildContours()
                         }
                     ))
-                    Text("New map from USGS 3DEP + LiDAR + GPS (hillshade + contours). Sharp at pad scale — not USGS print tiles.")
+                    Text("USGS 3DEP (+ LiDAR when scanned) hillshade + contours. This is what stays sharp when you zoom into a pad — Apple street tiles will look blocky.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                     Toggle("USGS topo tiles", isOn: $viewModel.showTopo)
+                        .disabled(viewModel.fusedMapOnly)
                     Toggle("Vector contour lines", isOn: Binding(
                         get: { viewModel.showContours },
                         set: { newValue in
@@ -524,6 +580,44 @@ private struct PrintMapSheet: View {
     }
 }
 
+/// Pinch / pan canvas for the rendered contour map (no MapKit tiles).
+private struct ContourMapCanvas: View {
+    let image: UIImage
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    var body: some View {
+        ZStack {
+            LiDirtColors.gunmetal
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .scaleEffect(scale)
+                .offset(offset)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            offset = CGSize(
+                                width: lastOffset.width + value.translation.width,
+                                height: lastOffset.height + value.translation.height
+                            )
+                        }
+                        .onEnded { _ in lastOffset = offset }
+                )
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            scale = min(max(lastScale * value.magnification, 1), 12)
+                        }
+                        .onEnded { _ in lastScale = scale }
+                )
+                .padding(8)
+        }
+    }
+}
+
 private struct IdentifiableURL: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
@@ -557,6 +651,7 @@ struct SiteMapRepresentable: UIViewRepresentable {
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.setRegion(viewModel.region, animated: false)
         context.coordinator.mapView = map
+        context.coordinator.applyBaseMapStyle()
         context.coordinator.applyCameraBoundary()
         context.coordinator.applyOverlays()
         context.coordinator.syncCropEditor()
@@ -566,6 +661,7 @@ struct SiteMapRepresentable: UIViewRepresentable {
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.viewModel = viewModel
         context.coordinator.mapView = mapView
+        context.coordinator.applyBaseMapStyle()
         context.coordinator.applyCameraBoundary()
         context.coordinator.applyOverlays()
         context.coordinator.syncCropEditor()
@@ -593,9 +689,27 @@ struct SiteMapRepresentable: UIViewRepresentable {
         private var savedZoomEnabled = true
         private var savedRotateEnabled = true
         private var savedPitchEnabled = true
+        private var lastFusedMapOnly: Bool?
 
         init(viewModel: SiteMapViewModel) {
             self.viewModel = viewModel
+        }
+
+        func applyBaseMapStyle() {
+            guard let mapView else { return }
+            let only = viewModel.fusedMapOnly && viewModel.fusedMapImage != nil
+            if lastFusedMapOnly == only { return }
+            lastFusedMapOnly = only
+            if only {
+                // Hide blocky street tiles — contour overlay is the map.
+                let config = MKStandardMapConfiguration(emphasisStyle: .muted)
+                config.pointOfInterestFilter = .excludingAll
+                config.showsTraffic = false
+                mapView.preferredConfiguration = config
+                mapView.alpha = 1
+            } else {
+                mapView.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
+            }
         }
 
         func applyCameraBoundary() {
@@ -665,7 +779,7 @@ struct SiteMapRepresentable: UIViewRepresentable {
 
             // Prefer the custom fused surface map over USGS print tiles for the Job Site.
             let hasFused = viewModel.showFusedSurfaceMap && viewModel.fusedMapImage != nil
-            if viewModel.showTopo, !hasFused {
+            if viewModel.showTopo, !hasFused, !viewModel.fusedMapOnly {
                 if topoOverlay == nil {
                     let overlay = USGSTopoOverlay.makeOverlay()
                     topoOverlay = overlay

@@ -49,6 +49,14 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var fusedMapBounds: JobSiteBounds?
     @Published var showFusedSurfaceMap = true
     @Published var isBuildingFusedMap = false
+    /// Full-screen pinch-zoom viewer for the finished contour / hillshade image only.
+    @Published var showContourMapViewer = false
+    /// When true, hide Apple base tiles and show only the fused contour overlay on the Job Site map.
+    @Published var fusedMapOnly = false
+    /// 3DEP-only foundation DEM when no LiDAR scan is loaded yet.
+    private var foundationHeightmap: HeightmapResult?
+    private var foundationOrigin: CLLocationCoordinate2D?
+    private var foundationTask: Task<Void, Never>?
 
     let projectName: String
     let projectId: UUID?
@@ -128,7 +136,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         locationManager.startUpdatingLocation()
         refreshOfflineAvailability()
         if lidarHeightmap == nil {
-            statusMessage = "USGS topo — set a Job Site rectangle for phone focus / offline."
+            statusMessage = "USGS topo — set a Job Site, then open Contour map for a sharp pad view."
+            startFoundationMapIfNeeded()
         } else if orientation.latitude == nil {
             statusMessage = "Scan has no GPS fix — showing topo only."
             contourNote = GISDisclaimer.needScanGPS
@@ -142,6 +151,141 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         fuseTask?.cancel()
         offlineTask?.cancel()
         contourTask?.cancel()
+        foundationTask?.cancel()
+    }
+
+    var hasContourMapImage: Bool {
+        fusedMapImage != nil || offlineImage != nil
+    }
+
+    var canOpenContourMap: Bool {
+        hasContourMapImage || (jobSite?.isValid == true) || rawContourSourceHeightmap != nil
+    }
+
+    /// Open a viewer that shows only the finished contour / hillshade map (no Apple tiles).
+    func openContourMapViewer() {
+        if let fusedMapImage {
+            showContourMapViewer = true
+            return
+        }
+        if let offlineImage {
+            showContourMapViewer = true
+            return
+        }
+        // Build 3DEP (or rebuild fused) then open.
+        if lidarHeightmap != nil, orientation.latitude != nil {
+            showFusedSurfaceMap = true
+            rebuildContours()
+            statusMessage = "Building contour map…"
+            // Viewer opens once image lands — polled via show when image available.
+            waitAndOpenContourViewer()
+            return
+        }
+        guard jobSite?.isValid == true else {
+            contourNote = "Set a Job Site outline first, then open Contour map."
+            return
+        }
+        startFoundationMapIfNeeded(force: true, openViewerWhenReady: true)
+    }
+
+    func setFusedMapOnly(_ enabled: Bool) {
+        fusedMapOnly = enabled
+        if enabled {
+            showFusedSurfaceMap = true
+            showTopo = false
+            if fusedMapImage == nil {
+                if lidarHeightmap != nil {
+                    rebuildContours()
+                } else {
+                    startFoundationMapIfNeeded(force: true)
+                }
+            }
+            if let bounds = fusedMapBounds ?? jobSite {
+                region = bounds.region
+            }
+            statusMessage = enabled
+                ? "Contour map only — Apple tiles hidden."
+                : statusMessage
+        } else {
+            showTopo = true
+            refreshStatus()
+        }
+    }
+
+    private func waitAndOpenContourViewer() {
+        foundationTask?.cancel()
+        foundationTask = Task {
+            for _ in 0..<40 {
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                if fusedMapImage != nil || offlineImage != nil {
+                    showContourMapViewer = true
+                    return
+                }
+            }
+            if fusedMapImage == nil {
+                offlineError = "Could not build contour map yet — check network / Job Site size."
+            }
+        }
+    }
+
+    /// Fetch USGS 3DEP for the Job Site and render a sharp hillshade+contour image (no LiDAR needed).
+    func startFoundationMapIfNeeded(force: Bool = false, openViewerWhenReady: Bool = false) {
+        guard lidarHeightmap == nil else { return }
+        guard let bounds = jobSite, bounds.isValid else { return }
+        if !force, fusedMapImage != nil, foundationHeightmap != nil { return }
+        if isBuildingFusedMap, !force { return }
+
+        foundationTask?.cancel()
+        isBuildingFusedMap = true
+        statusMessage = "Downloading USGS elevation for contour map…"
+        let interval = contourIntervalInches
+        let showLines = showContours
+        foundationTask = Task {
+            do {
+                let fetched = try await elevationService.fetchFoundationDEM(covering: bounds)
+                if Task.isCancelled { return }
+                foundationHeightmap = fetched.heightmap
+                foundationOrigin = fetched.origin
+                let prepared = await Task.detached(priority: .userInitiated) {
+                    DEMGroundSmoother.prepareForContours(fetched.heightmap, mode: .smoothedGround)
+                }.value
+                if Task.isCancelled { return }
+                let rendered = await Task.detached(priority: .userInitiated) {
+                    FusedSiteMapRenderer.render(
+                        heightmap: prepared,
+                        origin: fetched.origin,
+                        bounds: bounds,
+                        intervalInches: interval,
+                        drawContours: showLines
+                    )
+                }.value
+                if Task.isCancelled { return }
+                if let rendered, let image = rendered.image {
+                    fusedMapImage = image
+                    fusedMapBounds = rendered.bounds
+                    showFusedSurfaceMap = true
+                    statusMessage = String(
+                        format: "3DEP contour map ready — ~%.0f×%.0f ft (scan later for LiDAR detail).",
+                        bounds.widthFeet,
+                        bounds.lengthFeet
+                    )
+                    if openViewerWhenReady {
+                        showContourMapViewer = true
+                    }
+                } else {
+                    offlineError = "Elevation downloaded but contour render failed."
+                }
+            } catch {
+                if Task.isCancelled { return }
+                statusMessage = "Could not load 3DEP contour map — \(error.localizedDescription)"
+                if openViewerWhenReady {
+                    offlineError = error.localizedDescription
+                }
+            }
+            isBuildingFusedMap = false
+            foundationTask = nil
+        }
     }
 
     /// Bounds used for the fused surface map (Job Site outline, else DEM footprint).
@@ -204,6 +348,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
     /// Enter photo-crop style editing on the map (drag / pinch / twist).
     func beginJobSiteCropEdit() {
+        if fusedMapOnly {
+            fusedMapOnly = false
+            showTopo = true
+        }
         if jobSite == nil || jobSite?.isValid != true {
             placeOutlineAtMapCenter()
         }
@@ -510,8 +658,20 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             )
         }
         // Re-render fused surface for the new outline size.
-        if rawContourSourceHeightmap != nil, orientation.latitude != nil {
+        if lidarHeightmap != nil, orientation.latitude != nil {
             rebuildContours()
+        } else if bounds?.isValid == true {
+            // Invalidate prior foundation so the new outline gets a fresh 3DEP map.
+            foundationHeightmap = nil
+            foundationOrigin = nil
+            fusedMapImage = nil
+            fusedMapBounds = nil
+            startFoundationMapIfNeeded(force: true)
+        } else {
+            foundationHeightmap = nil
+            foundationOrigin = nil
+            fusedMapImage = nil
+            fusedMapBounds = nil
         }
     }
 
@@ -596,19 +756,26 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     }
 
     func rebuildContours() {
-        guard let lat = orientation.latitude,
-              let lon = orientation.longitude,
+        let originCoord: CLLocationCoordinate2D?
+        if let lat = orientation.latitude, let lon = orientation.longitude {
+            originCoord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        } else {
+            originCoord = foundationOrigin
+        }
+        guard let origin = originCoord,
               let raw = rawContourSourceHeightmap else {
             contourPolylines = []
-            fusedMapImage = nil
-            fusedMapBounds = nil
+            if lidarHeightmap == nil {
+                // Keep any 3DEP foundation image; don't blank the map while GPS-only.
+            } else {
+                fusedMapImage = nil
+                fusedMapBounds = nil
+            }
             if lidarHeightmap != nil, orientation.latitude == nil {
                 contourNote = GISDisclaimer.needScanGPS
             }
             return
         }
-
-        let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
         let interval = contourIntervalInches
         let mode = contourSurfaceMode
         let showLines = showContours
@@ -687,30 +854,38 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     }
 
     var canExportPrint: Bool {
-        contourSourceHeightmap != nil && orientation.latitude != nil && orientation.longitude != nil
+        guard contourSourceHeightmap != nil else { return false }
+        if orientation.latitude != nil, orientation.longitude != nil { return true }
+        return foundationOrigin != nil
     }
 
     func exportPDF(sheet: PrintSheetSize) {
         printError = nil
         sharePDFURL = nil
-        guard let source = contourSourceHeightmap,
-              let lat = orientation.latitude,
-              let lon = orientation.longitude else {
-            printError = "Need a fused/LiDAR surface with GPS to print."
+        let origin: CLLocationCoordinate2D?
+        if let lat = orientation.latitude, let lon = orientation.longitude {
+            origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        } else {
+            origin = foundationOrigin
+        }
+        guard let source = contourSourceHeightmap, let origin else {
+            printError = "Need a contour surface (scan or 3DEP Job Site map) to print."
             return
         }
-        let method = (fusedResult?.method ?? "lidar_only") + "/" + contourSurfaceMode.rawValue
+        let method = (fusedResult?.method
+            ?? (lidarHeightmap != nil ? "lidar_only" : "3dep_foundation"))
+            + "/" + contourSurfaceMode.rawValue
         let model = SiteMapPrintModel(
             projectName: projectName,
             sheet: sheet,
             heightmap: source,
-            origin: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            origin: origin,
             intervalInches: contourIntervalInches,
             methodLabel: method,
             surfaceModeLabel: contourSurfaceMode.label,
             verticalBiasM: fusedResult?.verticalBiasM ?? 0,
             lidarCellCount: fusedResult?.lidarSampleCount
-                ?? source.elevations.filter { !$0.isNaN }.count,
+                ?? (lidarHeightmap != nil ? source.elevations.filter { !$0.isNaN }.count : 0),
             capturedAt: Date()
         )
         do {
@@ -721,7 +896,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     }
 
     private var rawContourSourceHeightmap: HeightmapResult? {
-        fusedResult?.heightmap ?? lidarHeightmap
+        fusedResult?.heightmap ?? lidarHeightmap ?? foundationHeightmap
     }
 
     private var contourSourceHeightmap: HeightmapResult? {
@@ -759,8 +934,12 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             statusMessage = "LiDAR \(surface) contours on topo — fuse pending or unavailable."
         } else if lidarHeightmap != nil {
             statusMessage = "Scan loaded — need GPS to place and fuse."
+        } else if fusedMapImage != nil {
+            statusMessage = "3DEP contour map ready — open Contour map for a sharp pad view."
+        } else if jobSite?.isValid == true {
+            statusMessage = "Job Site set — building contour map from USGS elevation…"
         } else {
-            statusMessage = "USGS topo — scan a pad to fuse LiDAR detail."
+            statusMessage = "USGS topo — set a Job Site, then open Contour map."
         }
     }
 }
@@ -793,9 +972,9 @@ extension SiteMapViewModel: CLLocationManagerDelegate {
                     span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
                 )
             }
-            if lidarHeightmap == nil {
+            if lidarHeightmap == nil, fusedMapImage == nil, !isBuildingFusedMap {
                 statusMessage = String(
-                    format: "GPS %.5f, %.5f (±%.0f m) — scan to fuse contours.",
+                    format: "GPS %.5f, %.5f (±%.0f m) — set Job Site, then Contour map.",
                     coord.latitude,
                     coord.longitude,
                     max(location.horizontalAccuracy, 0)

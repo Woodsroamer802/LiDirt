@@ -11,13 +11,11 @@ struct ProjectDetailView: View {
     @State private var uploadErrorMessage: String?
     @State private var pendingDelete: ScanSummary?
     @State private var showDeleteConfirm = false
-    @State private var showDeleteProjectConfirm = false
     @State private var showSiteMap = false
     @State private var siteMapHeightmap: HeightmapResult?
     @State private var siteMapOrientation: ScanOrientationSnapshot = .unavailable
     @State private var isSavingPackage = false
     @State private var packageHint: String?
-    @Environment(\.dismiss) private var dismiss
 
     private var project: Project? {
         environment.projectStore.project(id: projectId)
@@ -35,13 +33,6 @@ struct ProjectDetailView: View {
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
         .navigationTitle(project?.name ?? "Project")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Delete project", role: .destructive) {
-                    showDeleteProjectConfirm = true
-                }
-            }
-        }
         .sheet(isPresented: $showSiteMap) {
             NavigationStack {
                 SiteMapView(
@@ -161,14 +152,6 @@ struct ProjectDetailView: View {
             }
         } message: {
             Text("Removes the local package and list entry. This cannot be undone.")
-        }
-        .alert("Delete this project?", isPresented: $showDeleteProjectConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                deleteEntireProject()
-            }
-        } message: {
-            Text("Removes the project and all of its local scans. This cannot be undone.")
         }
     }
 
@@ -307,16 +290,6 @@ struct ProjectDetailView: View {
         _ = environment.projectStore.deleteScanSummary(projectId: projectId, scanId: scanId)
         environment.localScanStore.deletePackage(scanId: scanId)
         environment.uploadQueue.remove(scanId)
-    }
-
-    private func deleteEntireProject() {
-        guard let removed = environment.projectStore.deleteProject(id: projectId) else { return }
-        for scan in removed.scanSummaries {
-            environment.localScanStore.deletePackage(scanId: scan.id)
-            environment.uploadQueue.remove(scan.id)
-        }
-        JobSiteOfflineStore().deletePackage(projectId: projectId)
-        dismiss()
     }
 
     private func openScan(_ scan: ScanSummary) {
