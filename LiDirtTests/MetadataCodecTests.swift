@@ -48,9 +48,9 @@ final class MetadataCodecTests: XCTestCase {
 
     func testHeightmapBinaryRoundTripNaN() throws {
         let elevations: [Float] = [1.0, .nan, 2.5, 3.0]
-        var mutable = elevations
-        let data = mutable.withUnsafeBufferPointer { Data(buffer: $0) }
-        XCTAssertEqual(data.count, 16)
+        // Must work with a let array — no mutable buffer required for heightmap.f32.
+        let data = ScanPackageWriter.float32BinaryData(elevations)
+        XCTAssertEqual(data.count, elevations.count * MemoryLayout<Float>.size)
 
         let restored: [Float] = data.withUnsafeBytes { ptr in
             Array(ptr.bindMemory(to: Float.self))
@@ -59,5 +59,43 @@ final class MetadataCodecTests: XCTestCase {
         XCTAssertTrue(restored[1].isNaN)
         XCTAssertEqual(restored[2], 2.5)
         XCTAssertEqual(restored[3], 3.0)
+    }
+
+    func testWritePackageUsesLetSafeFloatBinary() throws {
+        var cells: [DEMGridKey: DEMCellStats] = [:]
+        for iz in 0..<2 {
+            for ix in 0..<2 {
+                var s = DEMCellStats()
+                s.addSample(Float(ix + iz))
+                cells[DEMGridKey(ix: ix, iz: iz)] = s
+            }
+        }
+        let heightmap = try XCTUnwrap(DEMBuilder.buildHeightmap(cells: cells, cellSizeM: 0.05))
+        let metrics = QualityScorer.score(cells: cells, heightmap: heightmap, passCount: 1)
+        let metadata = ScanPackageWriter.makeMetadata(
+            scanId: UUID(),
+            projectId: UUID(),
+            heightmap: heightmap,
+            metrics: metrics,
+            durationSec: 1,
+            minSamplesPerCell: 1,
+            preferredContourIntervalInches: 0.125,
+            controlPointsCount: 0,
+            hasLiDAR: true
+        )
+
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lidirt-package-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let package = try ScanPackageWriter.writePackage(
+            to: dir,
+            metadata: metadata,
+            heightmap: heightmap
+        )
+
+        let onDisk = try Data(contentsOf: package.heightmapURL)
+        XCTAssertEqual(onDisk, ScanPackageWriter.float32BinaryData(heightmap.elevations))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: package.metadataURL.path))
     }
 }

@@ -199,11 +199,7 @@ enum ScanPackageWriter {
         let metaData = try encoder.encode(metadata)
         try metaData.write(to: metadataURL, options: .atomic)
 
-        let floats = heightmap.elevations
-        let byteCount = floats.count * MemoryLayout<Float>.size
-        let raw = floats.withUnsafeBufferPointer { Data(buffer: $0) }
-        precondition(raw.count == byteCount)
-        try raw.write(to: heightmapURL, options: .atomic)
+        try float32BinaryData(heightmap.elevations).write(to: heightmapURL, options: .atomic)
 
         if let cgImage = HeightmapPreviewImage.cgImage(from: heightmap) {
             writePNG(cgImage, to: previewURL)
@@ -225,6 +221,12 @@ enum ScanPackageWriter {
 
     static func decodeMetadata(from data: Data) throws -> ScanMetadata {
         try JSONDecoder().decode(ScanMetadata.self, from: data)
+    }
+
+    /// Pack elevations as little-endian float32 bytes for `heightmap.f32`.
+    /// Uses a read-only buffer view — do not use `var` / mutable pointers here.
+    static func float32BinaryData(_ elevations: [Float]) -> Data {
+        elevations.withUnsafeBufferPointer { Data(buffer: $0) }
     }
 
     private static func writePNG(_ image: CGImage, to url: URL) {
