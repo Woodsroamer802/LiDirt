@@ -502,7 +502,7 @@ struct SiteMapRepresentable: UIViewRepresentable {
             let shouldLock = viewModel.lockViewToJobSite && (viewModel.jobSite?.isValid == true)
             if shouldLock, let jobSite = viewModel.jobSite {
                 if !lastLockEnabled || lastLockedBounds != jobSite {
-                    mapView.cameraBoundary = MKMapCameraBoundary(mapRect: jobSite.mapRect)
+                    mapView.cameraBoundary = MKMapView.CameraBoundary(mapRect: jobSite.mapRect)
                     lastLockedBounds = jobSite
                     lastLockEnabled = true
                 }
