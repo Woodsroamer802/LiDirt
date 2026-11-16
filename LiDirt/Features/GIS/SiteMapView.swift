@@ -5,9 +5,11 @@ struct SiteMapView: View {
     @StateObject private var viewModel: SiteMapViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var intervalText: String
+    @State private var showPrintSheet = false
     var onIntervalChange: ((Double) -> Void)?
 
     init(
+        projectName: String = "Site",
         heightmap: HeightmapResult? = nil,
         orientation: ScanOrientationSnapshot = .unavailable,
         contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
@@ -15,6 +17,7 @@ struct SiteMapView: View {
     ) {
         _viewModel = StateObject(
             wrappedValue: SiteMapViewModel(
+                projectName: projectName,
                 heightmap: heightmap,
                 orientation: orientation,
                 contourIntervalInches: contourIntervalInches
@@ -37,12 +40,33 @@ struct SiteMapView: View {
             .padding(16)
         }
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
-        .navigationTitle("Topo / contours")
+        .navigationTitle("Fused site map")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Print") { showPrintSheet = true }
+                    .disabled(!viewModel.canExportPrint)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Done") { dismiss() }
             }
+        }
+        .sheet(isPresented: $showPrintSheet) {
+            PrintMapSheet(viewModel: viewModel)
+        }
+        .sheet(item: Binding(
+            get: { viewModel.sharePDFURL.map(IdentifiableURL.init) },
+            set: { viewModel.sharePDFURL = $0?.url }
+        )) { item in
+            ActivityView(activityItems: [item.url])
+        }
+        .alert("Print failed", isPresented: Binding(
+            get: { viewModel.printError != nil },
+            set: { if !$0 { viewModel.printError = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.printError = nil }
+        } message: {
+            Text(viewModel.printError ?? "")
         }
         .onAppear { viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
@@ -59,13 +83,17 @@ struct SiteMapView: View {
 
             HStack(spacing: 10) {
                 toggleChip("USGS topo", isOn: $viewModel.showTopo)
-                toggleChip("LiDAR contours", isOn: Binding(
+                toggleChip("Fused contours", isOn: Binding(
                     get: { viewModel.showContours },
                     set: { newValue in
                         viewModel.showContours = newValue
                         viewModel.rebuildContours()
                     }
                 ))
+                if viewModel.isFusing {
+                    ProgressView()
+                        .tint(LiDirtColors.constructionYellow)
+                }
             }
 
             HStack(spacing: 8) {
@@ -150,6 +178,61 @@ struct SiteMapView: View {
         }
         return String(format: "%.2f", inches)
     }
+}
+
+private struct PrintMapSheet: View {
+    @ObservedObject var viewModel: SiteMapViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Prints a fused contour plan (USGS 3DEP foundation + LiDAR detail) fitted to the sheet with title block, scale, and north arrow.")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textSecondary)
+                }
+                Section("Sheet size") {
+                    ForEach(PrintSheetSize.allCases) { sheet in
+                        Button {
+                            dismiss()
+                            Task { @MainActor in
+                                viewModel.exportPDF(sheet: sheet)
+                            }
+                        } label: {
+                            Text(sheet.label)
+                                .foregroundStyle(LiDirtColors.constructionYellow)
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(LiDirtColors.gunmetal.ignoresSafeArea())
+            .navigationTitle("Print map")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct IdentifiableURL: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    var activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 struct SiteMapRepresentable: UIViewRepresentable {
