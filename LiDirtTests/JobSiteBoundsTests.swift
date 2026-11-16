@@ -41,6 +41,29 @@ final class JobSiteBoundsTests: XCTestCase {
         XCTAssertEqual(JobSiteDefaults.halfSideMeters(sideFeet: 100), 100 * 0.3048 / 2, accuracy: 1e-9)
     }
 
+    func testRectangleWidthLengthAndNudge() {
+        let center = CLLocationCoordinate2D(latitude: 44.0, longitude: -73.0)
+        let rect = JobSiteBounds.rectangle(center: center, widthFeet: 20, lengthFeet: 40)
+        XCTAssertTrue(rect.isValid)
+        XCTAssertEqual(rect.sideFeetEW, 20, accuracy: 1)
+        XCTAssertEqual(rect.sideFeetNS, 40, accuracy: 1)
+        let moved = rect.nudged(eastFeet: 10, northFeet: -5)
+        XCTAssertGreaterThan(moved.center.longitude, rect.center.longitude)
+        XCTAssertLessThan(moved.center.latitude, rect.center.latitude)
+        XCTAssertEqual(moved.sideFeetEW, rect.sideFeetEW, accuracy: 0.5)
+        let recentered = rect.recentered(to: CLLocationCoordinate2D(latitude: 44.01, longitude: -73.01))
+        XCTAssertEqual(recentered.center.latitude, 44.01, accuracy: 1e-6)
+        XCTAssertEqual(recentered.sideFeetNS, 40, accuracy: 1)
+    }
+
+    func testAdaptiveFusedRenderLongEdge() {
+        let center = CLLocationCoordinate2D(latitude: 40, longitude: -100)
+        let small = JobSiteBounds.square(center: center, sideFeet: 12)
+        let edge = FusedSiteMapRenderer.longEdgePixels(for: small)
+        XCTAssertGreaterThanOrEqual(edge, FusedSiteMapRenderer.minLongEdgePixels)
+        XCTAssertLessThanOrEqual(edge, FusedSiteMapRenderer.maxLongEdgePixels)
+    }
+
     func testTileMathCoversBounds() {
         let bounds = JobSiteBounds(north: 44.51, south: 44.50, east: -73.19, west: -73.20)
         let tiles = MapTileMath.tilesCovering(bounds: bounds, zoom: 14)

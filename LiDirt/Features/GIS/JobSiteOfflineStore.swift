@@ -35,8 +35,8 @@ enum JobSiteOfflineError: LocalizedError {
 
 /// Saves a high-resolution Job Site map image (topo snapshot + contours) for offline pan/zoom/rotate.
 final class JobSiteOfflineStore: Sendable {
-    /// Long edge of the offline image (~3× phone width class for modest pinch-zoom).
-    static let longEdgePixels: CGFloat = 3072
+    /// Long edge of the offline image (matches fused renderer max for sharp pad zoom).
+    static let longEdgePixels: CGFloat = 4096
 
     private let paths: FilePaths
 
@@ -99,7 +99,7 @@ final class JobSiteOfflineStore: Sendable {
             bounds: bounds,
             intervalInches: contourIntervalInches,
             drawContours: true,
-            longEdge: Self.longEdgePixels
+            longEdge: max(Self.longEdgePixels, FusedSiteMapRenderer.longEdgePixels(for: bounds))
            ),
            let fusedImage = rendered.image {
             progress?("Rendering fused 3DEP + LiDAR map…")

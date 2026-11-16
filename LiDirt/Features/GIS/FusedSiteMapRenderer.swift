@@ -6,7 +6,12 @@ import UIKit
 /// Builds a **new** Job Site map image from fused elevation (USGS 3DEP foundation + phone LiDAR),
 /// placed with GPS — hillshade + contours at any pad scale (not limited by USGS print tile zoom).
 enum FusedSiteMapRenderer {
-    static let longEdgePixels: CGFloat = 2048
+    /// Fallback long edge when bounds aren’t known yet.
+    static let longEdgePixels: CGFloat = 4096
+    /// Target detail for small pads — keeps ~140 sq ft sites sharp on phone.
+    static let pixelsPerFoot: CGFloat = 32
+    static let minLongEdgePixels: CGFloat = 1536
+    static let maxLongEdgePixels: CGFloat = 4096
 
     struct RenderedMap: Sendable {
         var pngData: Data
@@ -17,12 +22,20 @@ enum FusedSiteMapRenderer {
         var image: UIImage? { UIImage(data: pngData) }
     }
 
-    static func pixelSize(for bounds: JobSiteBounds, longEdge: CGFloat = longEdgePixels) -> CGSize {
+    /// Adaptive resolution: small Job Sites get more pixels per foot so zoom isn’t soft.
+    static func longEdgePixels(for bounds: JobSiteBounds) -> CGFloat {
+        let feet = CGFloat(max(bounds.sideFeetNS, bounds.sideFeetEW, 1))
+        let target = feet * pixelsPerFoot
+        return min(max(target, minLongEdgePixels), maxLongEdgePixels)
+    }
+
+    static func pixelSize(for bounds: JobSiteBounds, longEdge: CGFloat? = nil) -> CGSize {
+        let edge = longEdge ?? longEdgePixels(for: bounds)
         let aspect = max(bounds.longitudeDelta, 1e-9) / max(bounds.latitudeDelta, 1e-9)
         if aspect >= 1 {
-            return CGSize(width: longEdge, height: max(longEdge / aspect, 256))
+            return CGSize(width: edge, height: max(edge / aspect, 512))
         }
-        return CGSize(width: max(longEdge * aspect, 256), height: longEdge)
+        return CGSize(width: max(edge * aspect, 512), height: edge)
     }
 
     /// Render hillshade + optional contours over `bounds` from a local-meter heightmap and GPS origin.
@@ -32,10 +45,10 @@ enum FusedSiteMapRenderer {
         bounds: JobSiteBounds,
         intervalInches: Double,
         drawContours: Bool = true,
-        longEdge: CGFloat = longEdgePixels
+        longEdge: CGFloat? = nil
     ) -> RenderedMap? {
         guard bounds.isValid else { return nil }
-        let size = pixelSize(for: bounds, longEdge: longEdge)
+        let size = pixelSize(for: bounds, longEdge: longEdge ?? longEdgePixels(for: bounds))
         let width = Int(size.width.rounded())
         let height = Int(size.height.rounded())
         guard width > 4, height > 4 else { return nil }
@@ -66,11 +79,13 @@ enum FusedSiteMapRenderer {
         guard minElev.isFinite, maxElev.isFinite, maxElev > minElev else { return nil }
 
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
+        // Retina-scale bitmap so MapKit overlay stays sharp on device.
+        format.scale = 2
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format)
         let image = renderer.image { ctx in
             let cg = ctx.cgContext
+            cg.interpolationQuality = .high
             // Base fill
             UIColor(red: 0.14, green: 0.17, blue: 0.20, alpha: 1).setFill()
             cg.fill(CGRect(x: 0, y: 0, width: width, height: height))

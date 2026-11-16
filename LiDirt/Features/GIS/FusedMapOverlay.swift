@@ -33,6 +33,7 @@ final class FusedMapOverlayRenderer: MKOverlayRenderer {
         guard imageRect.intersects(tileRect) else { return }
 
         context.saveGState()
+        context.interpolationQuality = .high
         // CGContext is flipped vs UIKit image orientation.
         context.translateBy(x: imageRect.minX, y: imageRect.maxY)
         context.scaleBy(x: 1, y: -1)

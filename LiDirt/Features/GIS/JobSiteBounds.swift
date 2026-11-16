@@ -2,13 +2,15 @@ import Foundation
 import CoreLocation
 import MapKit
 
-/// Shared Job Site outline / download size defaults (feet on a side for a square).
+/// Shared Job Site outline / download size defaults (feet).
 enum JobSiteDefaults {
-    /// ~10×10 ft — about 100 sq ft pad.
+    /// ~10 ft — supports ~100 sq ft pads when square.
     static let minSideFeet: Double = 10
     static let maxSideFeet: Double = 1_000
     /// Sensible starting outline; user can shrink before download.
     static let defaultSideFeet: Double = 100
+    /// Nudge step when repositioning the Job Site border.
+    static let nudgeFeet: Double = 10
 
     static func clampSideFeet(_ feet: Double) -> Double {
         min(max(feet, minSideFeet), maxSideFeet)
@@ -127,9 +129,55 @@ struct JobSiteBounds: Codable, Equatable, Sendable, Hashable {
         square(center: center, halfSideMeters: JobSiteDefaults.halfSideMeters(sideFeet: sideFeet))
     }
 
+    /// Axis-aligned rectangle. `widthFeet` is east–west, `lengthFeet` is north–south.
+    static func rectangle(
+        center: CLLocationCoordinate2D,
+        widthFeet: Double,
+        lengthFeet: Double
+    ) -> JobSiteBounds {
+        let halfW = JobSiteDefaults.halfSideMeters(sideFeet: widthFeet)
+        let halfL = JobSiteDefaults.halfSideMeters(sideFeet: lengthFeet)
+        let metersPerDegLat = 111_320.0
+        let metersPerDegLon = max(metersPerDegLat * cos(center.latitude * .pi / 180), 1e-6)
+        return JobSiteBounds(
+            north: center.latitude + halfL / metersPerDegLat,
+            south: center.latitude - halfL / metersPerDegLat,
+            east: center.longitude + halfW / metersPerDegLon,
+            west: center.longitude - halfW / metersPerDegLon
+        )
+    }
+
     /// Keep center; resize to a square of the given side length in feet.
     func resizedToSideFeet(_ sideFeet: Double) -> JobSiteBounds {
         JobSiteBounds.square(center: center, sideFeet: sideFeet)
+    }
+
+    /// Keep center; resize to a rectangle (width = E–W, length = N–S).
+    func resizedToFeet(widthFeet: Double, lengthFeet: Double) -> JobSiteBounds {
+        JobSiteBounds.rectangle(center: center, widthFeet: widthFeet, lengthFeet: lengthFeet)
+    }
+
+    /// Translate the rectangle by east/north offsets in feet (center moves; size unchanged).
+    func nudged(eastFeet: Double, northFeet: Double) -> JobSiteBounds {
+        let metersPerDegLat = 111_320.0
+        let metersPerDegLon = max(metersPerDegLat * cos(center.latitude * .pi / 180), 1e-6)
+        let dLat = (northFeet * 0.3048) / metersPerDegLat
+        let dLon = (eastFeet * 0.3048) / metersPerDegLon
+        return JobSiteBounds(
+            north: north + dLat,
+            south: south + dLat,
+            east: east + dLon,
+            west: west + dLon
+        )
+    }
+
+    /// Keep size; move center to a new point.
+    func recentered(to newCenter: CLLocationCoordinate2D) -> JobSiteBounds {
+        JobSiteBounds.rectangle(
+            center: newCenter,
+            widthFeet: JobSiteDefaults.clampSideFeet(sideFeetEW),
+            lengthFeet: JobSiteDefaults.clampSideFeet(sideFeetNS)
+        )
     }
 
     func expanded(meters: Double) -> JobSiteBounds {
