@@ -143,63 +143,69 @@ final class ScanOrientationService: NSObject, ObservableObject {
 
     private func rebuildSnapshot(cameraTransform: simd_float4x4?) {
         let location = lastLocation
-        let heading = lastHeading
+        let (headingDegrees, headingAccuracy, headingSource) = Self.parseHeading(lastHeading)
 
-        var headingDegrees: Double?
-        var headingAccuracy: Double?
-        var headingSource = "unavailable"
-        var yaw: Double?
-        var aligned = false
-        var method = "none"
-
-        if let heading {
-            if heading.trueHeading >= 0 {
-                headingDegrees = heading.trueHeading
-                headingAccuracy = heading.headingAccuracy >= 0 ? heading.headingAccuracy : nil
-                headingSource = "trueHeading"
-            } else if heading.magneticHeading >= 0 {
-                headingDegrees = heading.magneticHeading
-                headingAccuracy = heading.headingAccuracy >= 0 ? heading.headingAccuracy : nil
-                headingSource = "magneticHeading"
-            }
-        }
-
+        let yaw: Double?
+        let method: String
+        let status: String
         if let headingDegrees, let cameraTransform {
             let arYaw = NorthAlignMath.arkitForwardYaw(cameraTransform: cameraTransform)
             yaw = NorthAlignMath.northAlignYaw(
                 arkitForwardYawRadians: arYaw,
                 compassHeadingDegrees: headingDegrees
             )
-            aligned = true
-            method = location != nil ? "phone_compass_gps" : "phone_compass"
-            statusMessage = "North aligned (phone compass — approximate)"
+            method = location == nil ? "phone_compass" : "phone_compass_gps"
+            status = "North aligned (phone compass — approximate)"
         } else if location != nil {
+            yaw = nil
             method = "phone_gps"
-            statusMessage = "GPS only — no heading for north align"
+            status = "GPS only — no heading for north align"
         } else if headingDegrees != nil {
+            yaw = nil
             method = "phone_compass"
-            statusMessage = "Heading only — walk start will calibrate"
+            status = "Heading only — walk start will calibrate"
+        } else {
+            yaw = nil
+            method = "none"
+            status = statusMessage
         }
 
-        let accuracy: Double?
+        statusMessage = status
+
+        let horizontalAccuracy: Double?
         if let location, location.horizontalAccuracy >= 0 {
-            accuracy = location.horizontalAccuracy
+            horizontalAccuracy = location.horizontalAccuracy
         } else {
-            accuracy = nil
+            horizontalAccuracy = nil
         }
 
         snapshot = ScanOrientationSnapshot(
             method: method,
             latitude: location?.coordinate.latitude,
             longitude: location?.coordinate.longitude,
-            horizontalAccuracyM: accuracy,
+            horizontalAccuracyM: horizontalAccuracy,
             headingDegrees: headingDegrees,
             headingAccuracyDegrees: headingAccuracy,
             headingSource: headingSource,
             northAlignYawRadians: yaw,
-            frameAlignedToNorth: aligned,
+            frameAlignedToNorth: yaw != nil,
             disclaimer: ScanOrientationSnapshot.phoneDisclaimer
         )
+    }
+
+    /// Prefer true north; fall back to magnetic. Invalid Core Location values are negative.
+    private static func parseHeading(_ heading: CLHeading?) -> (Double?, Double?, String) {
+        guard let heading else {
+            return (nil, nil, "unavailable")
+        }
+        let accuracy = heading.headingAccuracy >= 0 ? heading.headingAccuracy : nil
+        if heading.trueHeading >= 0 {
+            return (heading.trueHeading, accuracy, "trueHeading")
+        }
+        if heading.magneticHeading >= 0 {
+            return (heading.magneticHeading, accuracy, "magneticHeading")
+        }
+        return (nil, nil, "unavailable")
     }
 }
 
