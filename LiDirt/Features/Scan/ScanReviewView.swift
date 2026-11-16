@@ -9,9 +9,11 @@ struct ScanReviewView: View {
     let durationSec: TimeInterval
     let controlPins: [ControlPin]
     let preferredContourIntervalInches: Double
+    var preferredContourSurfaceMode: ContourSurfaceMode = .smoothedGround
     var projectName: String = "Scan"
     var orientation: ScanOrientationSnapshot = .unavailable
     var onContourIntervalChange: ((Double) -> Void)?
+    var onContourSurfaceModeChange: ((ContourSurfaceMode) -> Void)?
 
     var onUpload: () -> Void
     var onRescan: () -> Void
@@ -24,6 +26,7 @@ struct ScanReviewView: View {
     @State private var showTopoMap = false
     @State private var intervalText: String = ""
     @State private var activeIntervalInches: Double = ContourPreview.defaultIntervalInches
+    @State private var surfaceMode: ContourSurfaceMode = .smoothedGround
 
     var body: some View {
         ScrollView {
@@ -45,6 +48,7 @@ struct ScanReviewView: View {
         .onAppear {
             activeIntervalInches = preferredContourIntervalInches
             intervalText = String(format: "%g", preferredContourIntervalInches)
+            surfaceMode = preferredContourSurfaceMode
         }
         .sheet(isPresented: $showTopoMap) {
             NavigationStack {
@@ -53,10 +57,15 @@ struct ScanReviewView: View {
                     heightmap: heightmap,
                     orientation: orientation,
                     contourIntervalInches: activeIntervalInches,
+                    contourSurfaceMode: surfaceMode,
                     onIntervalChange: { value in
                         activeIntervalInches = value
                         intervalText = String(format: "%g", value)
                         onContourIntervalChange?(value)
+                    },
+                    onSurfaceModeChange: { mode in
+                        surfaceMode = mode
+                        onContourSurfaceModeChange?(mode)
                     }
                 )
             }
@@ -126,6 +135,19 @@ struct ScanReviewView: View {
                     .tint(LiDirtColors.constructionYellow)
             }
 
+            Picker("Ground detail", selection: $surfaceMode) {
+                ForEach(ContourSurfaceMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: surfaceMode) { _, mode in
+                onContourSurfaceModeChange?(mode)
+            }
+            Text(surfaceMode.shortHelp)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+
             HStack(spacing: 8) {
                 Text("Interval (in)")
                     .font(LiDirtTypography.caption)
@@ -158,7 +180,7 @@ struct ScanReviewView: View {
 
                     if showContours {
                         ContourPreviewCanvas(
-                            heightmap: heightmap,
+                            heightmap: DEMGroundSmoother.prepareForContours(heightmap, mode: surfaceMode),
                             intervalInches: activeIntervalInches
                         )
                         .aspectRatio(CGFloat(heightmap.width) / CGFloat(max(heightmap.height, 1)), contentMode: .fit)

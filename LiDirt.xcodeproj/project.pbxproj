@@ -55,6 +55,8 @@
 		B6C7D8E9F0A14C2D3E4F5A6B /* PrintSheetSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B6C7D8E9F04B1C2D3E4F5A /* PrintSheetSize.swift */; };
 		D8E9F0A1B2C35E4F5A6B7C8D /* SiteMapPDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D8E9F0A1B24D3E4F5A6B7C /* SiteMapPDFRenderer.swift */; };
 		F0A1B2C3D4E57A6B7C8D9E0F /* FusedDEMBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F0A1B2C3D46F5A6B7C8D9E /* FusedDEMBuilderTests.swift */; };
+		B2C3D4E5F6A7489AB1C2D3E4 /* DEMGroundSmoother.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F64789B0C1D2E3 /* DEMGroundSmoother.swift */; };
+		D4E5F6A7B8C94A1CD3E4F5A6 /* DEMGroundSmootherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8490BC2D3E4F5 /* DEMGroundSmootherTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -110,6 +112,8 @@
 		A5B6C7D8E9F04B1C2D3E4F5A /* PrintSheetSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrintSheetSize.swift; sourceTree = "<group>"; };
 		C7D8E9F0A1B24D3E4F5A6B7C /* SiteMapPDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteMapPDFRenderer.swift; sourceTree = "<group>"; };
 		E9F0A1B2C3D46F5A6B7C8D9E /* FusedDEMBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedDEMBuilderTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F64789B0C1D2E3 /* DEMGroundSmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DEMGroundSmoother.swift; sourceTree = "<group>"; };
+		C3D4E5F6A7B8490BC2D3E4F5 /* DEMGroundSmootherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DEMGroundSmootherTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -147,6 +151,7 @@
 				1D889E55B34545B1ADF4C97B,
 				5BF9DDA8648A48A1842E32D7,
 				7DA86F81735747D7A9E26C2F,
+				A1B2C3D4E5F64789B0C1D2E3 /* DEMGroundSmoother.swift */,
 				E3F728F3B7F1455A8A212E67,
 				5C508031EA6E49749F6E142E,
 				DA5C75A8269D463BA990B15B,
@@ -278,6 +283,7 @@
 				EC800DEE2CE2456EB9A05123 /* NorthAlignMathTests.swift */,
 				B4C5D6E7F8A94B0C1D2E3F4A /* ContourMapGeorefTests.swift */,
 				E9F0A1B2C3D46F5A6B7C8D9E /* FusedDEMBuilderTests.swift */,
+				C3D4E5F6A7B8490BC2D3E4F5 /* DEMGroundSmootherTests.swift */,
 			);
 			path = LiDirtTests;
 			sourceTree = "<group>";
@@ -428,6 +434,7 @@
 				2908DFC2BEC84AAE8166054D /* ARScanView.swift in Sources */,
 				0DF5BB442D8A4349BA734BA5 /* CapturePipeline.swift in Sources */,
 				9BFB10B3A2674351853EFE79 /* ContourPreview.swift in Sources */,
+				B2C3D4E5F6A7489AB1C2D3E4 /* DEMGroundSmoother.swift in Sources */,
 				DD62B9CA62304A1F9AADF14E /* CoverageOverlay.swift in Sources */,
 				614611D1D9BA4A2F857B8768 /* DEMBuilder.swift in Sources */,
 				0A666A69E06B412CABC46246 /* DeviceCapability.swift in Sources */,
@@ -468,6 +475,7 @@
 				841621153A8F4E9093D971A0 /* NorthAlignMathTests.swift in Sources */,
 				A3B4C5D6E7F849A0B1C2D3E4 /* ContourMapGeorefTests.swift in Sources */,
 				F0A1B2C3D4E57A6B7C8D9E0F /* FusedDEMBuilderTests.swift in Sources */,
+				D4E5F6A7B8C94A1CD3E4F5A6 /* DEMGroundSmootherTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -121,6 +121,7 @@ From a project (**Fused topo / LiDAR map**) or scan review:
 - **USGS 3DEP** elevation as the foundation surface
 - **Phone LiDAR DEM** blended in for pad-scale detail (vertical bias matches 3DEP; GPS/compass place)
 - **Typed contour interval** (inches) on the map / review / Settings
+- **Ground detail toggle** — **As-scanned** (keep ruts/gravel texture) or **Smoothed ground** (ignore fine noise for equipment planning contours)
 - **Print PDF** fitted to:
   - ARCH D — 24×36 in (landscape)
   - Half sheet — 11×17 in

@@ -6,6 +6,8 @@ final class AppEnvironment: ObservableObject {
     @Published var authToken: String?
     @Published var preferredUnits: UnitsPreference
     @Published var preferredContourIntervalInches: Double
+    /// Contour surface: as-scanned texture vs smoothed ground (ignore gravel / veg / tire chew).
+    @Published var contourSurfaceMode: ContourSurfaceMode
     /// When false (default), scan HUD hides the GPS/orientation box; open it from the location button or Settings.
     @Published var showScanGPSBanner: Bool
 
@@ -18,12 +20,14 @@ final class AppEnvironment: ObservableObject {
     private let defaults: UserDefaults
     private static let showScanGPSBannerKey = "showScanGPSBanner"
     private static let contourIntervalKey = "preferredContourIntervalInches"
+    private static let contourSurfaceModeKey = "contourSurfaceMode"
 
     init(
         apiBaseURL: URL = URL(string: "https://api.lidirt.example/v1")!,
         authToken: String? = nil,
         preferredUnits: UnitsPreference = .usCustomary,
         preferredContourIntervalInches: Double? = nil,
+        contourSurfaceMode: ContourSurfaceMode? = nil,
         showScanGPSBanner: Bool? = nil,
         defaults: UserDefaults = .standard
     ) {
@@ -38,6 +42,14 @@ final class AppEnvironment: ObservableObject {
             self.preferredContourIntervalInches = stored > 0 ? stored : ContourPreview.defaultIntervalInches
         } else {
             self.preferredContourIntervalInches = ContourPreview.defaultIntervalInches
+        }
+        if let contourSurfaceMode {
+            self.contourSurfaceMode = contourSurfaceMode
+        } else if let raw = defaults.string(forKey: Self.contourSurfaceModeKey),
+                  let mode = ContourSurfaceMode(rawValue: raw) {
+            self.contourSurfaceMode = mode
+        } else {
+            self.contourSurfaceMode = .smoothedGround
         }
         if let showScanGPSBanner {
             self.showScanGPSBanner = showScanGPSBanner
@@ -60,6 +72,11 @@ final class AppEnvironment: ObservableObject {
     func savePreferredContourIntervalInches(_ inches: Double) {
         preferredContourIntervalInches = max(inches, 0.01)
         defaults.set(preferredContourIntervalInches, forKey: Self.contourIntervalKey)
+    }
+
+    func saveContourSurfaceMode(_ mode: ContourSurfaceMode) {
+        contourSurfaceMode = mode
+        defaults.set(mode.rawValue, forKey: Self.contourSurfaceModeKey)
     }
 
     func saveShowScanGPSBanner(_ show: Bool) {

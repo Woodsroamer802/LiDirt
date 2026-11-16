@@ -47,7 +47,9 @@ struct ProjectDetailView: View {
                     heightmap: siteMapHeightmap,
                     orientation: siteMapOrientation,
                     contourIntervalInches: environment.preferredContourIntervalInches,
-                    onIntervalChange: { environment.savePreferredContourIntervalInches($0) }
+                    contourSurfaceMode: environment.contourSurfaceMode,
+                    onIntervalChange: { environment.savePreferredContourIntervalInches($0) },
+                    onSurfaceModeChange: { environment.saveContourSurfaceMode($0) }
                 )
             }
         }
@@ -86,9 +88,11 @@ struct ProjectDetailView: View {
                 durationSec: payload.durationSec,
                 controlPins: payload.controlPins,
                 preferredContourIntervalInches: environment.preferredContourIntervalInches,
+                preferredContourSurfaceMode: environment.contourSurfaceMode,
                 projectName: project?.name ?? "Scan",
                 orientation: payload.orientation,
                 onContourIntervalChange: { environment.savePreferredContourIntervalInches($0) },
+                onContourSurfaceModeChange: { environment.saveContourSurfaceMode($0) },
                 onUpload: { beginUpload(payload, force: false) },
                 onRescan: {
                     reviewPayload = nil
