@@ -159,7 +159,13 @@ struct SettingsView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     @State private var apiText: String = ""
+    @State private var parcelCountyText: String = ""
+    @State private var parcelState: String = ""
+    @State private var parcelZIPText: String = ""
     @State private var parcelURLText: String = ""
+    @State private var isSearchingParcels = false
+    @State private var parcelSearchMessage: String?
+    @State private var showAdvancedParcelURL = false
 
     var body: some View {
         NavigationStack {
@@ -173,9 +179,59 @@ struct SettingsView: View {
                         .foregroundStyle(LiDirtColors.textMuted)
                 }
                 Section("GIS / property lines") {
-                    TextField("Parcel FeatureServer or GeoJSON URL", text: $parcelURLText)
+                    TextField("ZIP code", text: $parcelZIPText)
+                        .keyboardType(.numberPad)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                    TextField("County", text: $parcelCountyText)
+                        .textInputAutocapitalization(.words)
+                    Picker("State", selection: $parcelState) {
+                        Text("Select").tag("")
+                        ForEach(USStateOption.allCases) { state in
+                            Text(state.label).tag(state.rawValue)
+                        }
+                    }
+                    Button {
+                        Task { await searchParcels() }
+                    } label: {
+                        if isSearchingParcels {
+                            ProgressView()
+                        } else {
+                            Text("Find parcel lines")
+                        }
+                    }
+                    .disabled(isSearchingParcels)
+
+                    if let parcelSearchMessage {
+                        Text(parcelSearchMessage)
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textSecondary)
+                    }
+                    if !environment.parcelSourceTitle.isEmpty {
+                        Text("Using: \(environment.parcelSourceTitle)")
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.constructionYellow)
+                    }
+                    if !environment.parcelSourceURL.isEmpty {
+                        Text(environment.parcelSourceURL)
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textMuted)
+                            .lineLimit(2)
+                        Button("Clear parcel source", role: .destructive) {
+                            environment.clearParcelSource()
+                            parcelSearchMessage = "Parcel source cleared."
+                        }
+                    }
+
+                    DisclosureGroup("Advanced: custom URL", isExpanded: $showAdvancedParcelURL) {
+                        TextField("FeatureServer or GeoJSON URL", text: $parcelURLText)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Text("Only needed if county/ZIP search cannot find an open layer.")
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textMuted)
+                    }
+
                     Text(GISDisclaimer.dataLimits)
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
@@ -223,15 +279,50 @@ struct SettingsView: View {
                         if let url = URL(string: apiText), !apiText.isEmpty {
                             environment.updateAPIBaseURL(url)
                         }
-                        environment.saveParcelSourceURL(parcelURLText)
+                        environment.saveParcelPlace(
+                            county: parcelCountyText,
+                            state: parcelState,
+                            zip: parcelZIPText
+                        )
+                        let custom = parcelURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !custom.isEmpty, custom != environment.parcelSourceURL {
+                            environment.saveParcelSourceURL(custom, title: "Custom parcel URL")
+                        }
                         dismiss()
                     }
                 }
             }
             .onAppear {
                 apiText = environment.apiBaseURL.absoluteString
+                parcelCountyText = environment.parcelCounty
+                parcelState = environment.parcelState
+                parcelZIPText = environment.parcelZIP
                 parcelURLText = environment.parcelSourceURL
             }
+        }
+    }
+
+    @MainActor
+    private func searchParcels() async {
+        isSearchingParcels = true
+        parcelSearchMessage = "Searching open county GIS…"
+        defer { isSearchingParcels = false }
+        do {
+            let resolution = try await ParcelSourceResolver().resolve(
+                query: ParcelPlaceQuery(
+                    county: parcelCountyText,
+                    state: parcelState,
+                    zip: parcelZIPText
+                )
+            )
+            environment.saveParcelResolution(resolution)
+            parcelCountyText = resolution.county
+            parcelState = resolution.state
+            parcelZIPText = resolution.zip
+            parcelURLText = resolution.layerURL
+            parcelSearchMessage = "Found \(resolution.title)."
+        } catch {
+            parcelSearchMessage = error.localizedDescription
         }
     }
 }
