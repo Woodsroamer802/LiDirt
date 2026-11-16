@@ -33,6 +33,11 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var outlineSideFeet: Double = JobSiteDefaults.defaultSideFeet
     /// When on and a Job Site exists, pan/zoom stays inside that rectangle.
     @Published var lockViewToJobSite = true
+    /// Custom map built from 3DEP + LiDAR + GPS (hillshade + contours) — sharp at pad scale.
+    @Published var fusedMapImage: UIImage?
+    @Published var fusedMapBounds: JobSiteBounds?
+    @Published var showFusedSurfaceMap = true
+    @Published var isBuildingFusedMap = false
 
     let projectName: String
     let projectId: UUID?
@@ -45,7 +50,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     private let offlineStore: JobSiteOfflineStore
     private var fuseTask: Task<Void, Never>?
     private var offlineTask: Task<Void, Never>?
+    private var contourTask: Task<Void, Never>?
     private var didFitScanRegion = false
+    private var cachedPreparedKey: String?
+    private var cachedPreparedDEM: HeightmapResult?
 
     init(
         projectName: String = "Site",
@@ -120,6 +128,19 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         locationManager.stopUpdatingLocation()
         fuseTask?.cancel()
         offlineTask?.cancel()
+        contourTask?.cancel()
+    }
+
+    /// Bounds used for the fused surface map (Job Site outline, else DEM footprint).
+    var fusedRenderBounds: JobSiteBounds? {
+        if let jobSite, jobSite.isValid { return jobSite }
+        guard let raw = rawContourSourceHeightmap,
+              let lat = orientation.latitude,
+              let lon = orientation.longitude else { return nil }
+        return JobSiteBounds.from(
+            heightmap: raw,
+            origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        )
     }
 
     var hasOfflinePackage: Bool {
@@ -193,13 +214,19 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         offlineTask?.cancel()
         offlineTask = Task {
             do {
+                let origin: CLLocationCoordinate2D? = {
+                    guard let lat = orientation.latitude, let lon = orientation.longitude else { return nil }
+                    return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                }()
                 let meta = try await offlineStore.save(
                     projectId: projectId,
                     projectName: projectName,
                     bounds: jobSite,
                     contourPolylines: contourPolylines,
                     contourIntervalInches: contourIntervalInches,
-                    surfaceMode: contourSurfaceMode
+                    surfaceMode: contourSurfaceMode,
+                    heightmap: preparedContourSource(),
+                    origin: origin
                 ) { [weak self] message in
                     Task { @MainActor in
                         self?.offlineProgress = message
@@ -210,7 +237,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 offlineImage = offlineStore.loadImage(projectId: projectId)
                 isSavingOffline = false
                 offlineProgress = nil
-                statusMessage = "Job Site offline snapshot saved (\(meta.imageWidthPx)×\(meta.imageHeightPx))."
+                statusMessage = "Job Site offline map saved (\(meta.imageWidthPx)×\(meta.imageHeightPx))."
             } catch {
                 if Task.isCancelled { return }
                 isSavingOffline = false
@@ -275,13 +302,19 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                     offlineError = "Open this map from a project to save offline topo."
                     return
                 }
+                let origin: CLLocationCoordinate2D? = {
+                    guard let lat = self.orientation.latitude, let lon = self.orientation.longitude else { return nil }
+                    return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                }()
                 let meta = try await offlineStore.save(
                     projectId: projectId,
                     projectName: projectName,
                     bounds: bounds,
                     contourPolylines: contourPolylines,
                     contourIntervalInches: contourIntervalInches,
-                    surfaceMode: contourSurfaceMode
+                    surfaceMode: contourSurfaceMode,
+                    heightmap: preparedContourSource(),
+                    origin: origin
                 ) { [weak self] message in
                     Task { @MainActor in
                         self?.offlineProgress = message
@@ -292,8 +325,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 offlineImage = offlineStore.loadImage(projectId: projectId)
                 offlineProgress = nil
                 let lidarNote = contourPolylines.isEmpty
-                    ? "Topo only (no LiDAR contours yet — scan on site to refresh)."
-                    : "Topo + LiDAR contours layered."
+                    ? "Topo foundation only (scan on site to fuse LiDAR into the map)."
+                    : "Fused 3DEP + LiDAR map ready offline."
                 statusMessage = String(
                     format: "Offline Job Site ready (~%.0f×%.0f ft) for %@. %@",
                     sideFeet, sideFeet, query, lidarNote
@@ -316,6 +349,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 bounds.sideFeetNS,
                 bounds.sideFeetEW
             )
+        }
+        // Re-render fused surface for the new outline size.
+        if rawContourSourceHeightmap != nil, orientation.latitude != nil {
+            rebuildContours()
         }
     }
 
@@ -364,18 +401,23 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
         let service = elevationService
         fuseTask?.cancel()
+        let lidar = lidarHeightmap
         fuseTask = Task {
             do {
                 let foundation = try await service.fetchFoundationDEM(
-                    covering: lidarHeightmap,
+                    covering: lidar,
                     origin: origin
                 )
                 if Task.isCancelled { return }
                 fuseProgress = "Blending LiDAR into foundation…"
                 statusMessage = fuseProgress ?? "Fusing…"
-                let fused = FusedDEMBuilder.fuse(foundation: foundation, lidar: lidarHeightmap)
+                let fused = await Task.detached(priority: .userInitiated) {
+                    FusedDEMBuilder.fuse(foundation: foundation, lidar: lidar)
+                }.value
                 if Task.isCancelled { return }
                 fusedResult = fused
+                cachedPreparedKey = nil
+                cachedPreparedDEM = nil
                 isFusing = false
                 fuseProgress = nil
                 contourNote = nil
@@ -386,7 +428,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 // Fallback: contours from LiDAR alone with relative elevations.
                 isFusing = false
                 fuseProgress = nil
-                contourNote = "3DEP unavailable (\(error.localizedDescription)). Showing LiDAR-only contours on topo."
+                contourNote = "3DEP unavailable (\(error.localizedDescription)). Showing LiDAR-only fused map."
                 fusedResult = nil
                 rebuildContours()
                 refreshStatus()
@@ -395,11 +437,12 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     }
 
     func rebuildContours() {
-        guard showContours,
-              let source = contourSourceHeightmap,
-              let lat = orientation.latitude,
-              let lon = orientation.longitude else {
+        guard let lat = orientation.latitude,
+              let lon = orientation.longitude,
+              let raw = rawContourSourceHeightmap else {
             contourPolylines = []
+            fusedMapImage = nil
+            fusedMapBounds = nil
             if lidarHeightmap != nil, orientation.latitude == nil {
                 contourNote = GISDisclaimer.needScanGPS
             }
@@ -407,15 +450,77 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         }
 
         let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-        contourPolylines = ContourMapGeoref.polylines(
-            heightmap: source,
-            origin: origin,
-            intervalInches: contourIntervalInches
-        )
-        if fusedResult == nil, orientation.latitude != nil, !isFusing, contourNote == nil,
-           !orientation.frameAlignedToNorth {
-            contourNote = "Contours placed with GPS; scan was not north-aligned — orientation is approximate."
+        let interval = contourIntervalInches
+        let mode = contourSurfaceMode
+        let showLines = showContours
+        let buildSurface = showFusedSurfaceMap
+        let renderBounds = fusedRenderBounds
+        let key = "\(fusedResult?.method ?? "lidar")-\(mode.rawValue)-\(raw.width)x\(raw.height)"
+
+        contourTask?.cancel()
+        isBuildingFusedMap = buildSurface
+        contourTask = Task(priority: .userInitiated) {
+            let prepared: HeightmapResult
+            if let cachedPreparedDEM, cachedPreparedKey == key {
+                prepared = cachedPreparedDEM
+            } else {
+                prepared = await Task.detached(priority: .userInitiated) {
+                    DEMGroundSmoother.prepareForContours(raw, mode: mode)
+                }.value
+            }
+            if Task.isCancelled { return }
+
+            let lines: [ContourMapGeoref.ContourPolyline]
+            if showLines {
+                lines = await Task.detached(priority: .userInitiated) {
+                    ContourMapGeoref.polylines(
+                        heightmap: prepared,
+                        origin: origin,
+                        intervalInches: interval
+                    )
+                }.value
+            } else {
+                lines = []
+            }
+            if Task.isCancelled { return }
+
+            var rendered: FusedSiteMapRenderer.RenderedMap?
+            if buildSurface, let renderBounds {
+                rendered = await Task.detached(priority: .userInitiated) {
+                    FusedSiteMapRenderer.render(
+                        heightmap: prepared,
+                        origin: origin,
+                        bounds: renderBounds,
+                        intervalInches: interval,
+                        drawContours: showLines
+                    )
+                }.value
+            }
+            if Task.isCancelled { return }
+
+            cachedPreparedKey = key
+            cachedPreparedDEM = prepared
+            // Prefer the fused surface image (contours baked in) — avoids MapKit overlay thrash.
+            if let rendered, let image = rendered.image {
+                fusedMapImage = image
+                fusedMapBounds = rendered.bounds
+                contourPolylines = []
+            } else {
+                fusedMapImage = nil
+                fusedMapBounds = nil
+                contourPolylines = lines
+            }
+            isBuildingFusedMap = false
+            if fusedResult == nil, !isFusing, contourNote == nil, !orientation.frameAlignedToNorth {
+                contourNote = "Map placed with GPS; scan was not north-aligned — orientation is approximate."
+            }
+            refreshStatus()
         }
+    }
+
+    private func preparedContourSource() -> HeightmapResult? {
+        if let cachedPreparedDEM { return cachedPreparedDEM }
+        return contourSourceHeightmap
     }
 
     func regionDidChange(_ newRegion: MKCoordinateRegion) {
@@ -475,8 +580,9 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             let label = contourIntervalInches < 1
                 ? String(format: "%.3g in", contourIntervalInches)
                 : String(format: "%.2g in", contourIntervalInches)
+            let mapNote = fusedMapImage == nil ? "building map…" : "fused surface map ready"
             statusMessage =
-                "Fused \(surface) @ \(label) — 3DEP + \(fused.lidarSampleCount) LiDAR cells (\(contourPolylines.count) segments)."
+                "Fused \(surface) @ \(label) — 3DEP + \(fused.lidarSampleCount) LiDAR cells · \(mapNote)."
             // Prefer the outlined Job Site; never yank the camera to the raw DEM footprint when locked.
             if !didFitScanRegion {
                 if let jobSite, jobSite.isValid {

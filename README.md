@@ -117,11 +117,11 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 
 From a project (**Job Site map**) or scan review:
 
-- Outline the **scan area first** with an adjustable square (side length in feet) — download only that size (e.g. ~10×10 ft ≈ 100 sq ft)
+- **Fused surface map** — a new map rendered from USGS 3DEP + phone LiDAR + GPS (hillshade + contours), sharp at pad scale (~140 sq ft) without USGS print-tile pixelation
+- Outline the **scan area first** with an adjustable square (side length in feet) — download only that size
 - **Lock view to Job Site** so project map stays inside the outline
-- USGS topo stays visible when zooming past native z16 (upscaled tiles — no blank / Apple basemap flash)
-- Compact **Map options** sheet; address topo download uses the outline size
-- **Offline** high-res snapshot — pan / pinch / rotate on site
+- Faster scan→map: parallel 3DEP fetch, background fuse/contours, chained contour overlays
+- Compact **Map options** sheet; offline uses the same fused render when a scan is loaded
 - Disclaimer auto-minimizes after 5 seconds
 - **Print PDF** fitted to:
   - ARCH D — 24×36 in (landscape)
