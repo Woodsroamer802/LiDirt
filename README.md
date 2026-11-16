@@ -117,10 +117,10 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 
 From a project (**Job Site map**) or scan review:
 
-- Compact map UI — options live in a **dropdown / Map options** sheet
-- **USGS topo** + **3DEP** foundation with phone **LiDAR** detail
-- **Download topo for address** — geocode, frame Job Site, save offline snapshot (LiDAR contours layered when a scan is loaded)
-- **Job Site** rectangle, ground-detail toggle, typed contour interval
+- Outline the **scan area first** with an adjustable square (side length in feet) — download only that size (e.g. ~10×10 ft ≈ 100 sq ft)
+- **Lock view to Job Site** so project map stays inside the outline
+- USGS topo stays visible when zooming past native z16 (upscaled tiles — no blank / Apple basemap flash)
+- Compact **Map options** sheet; address topo download uses the outline size
 - **Offline** high-res snapshot — pan / pinch / rotate on site
 - Disclaimer auto-minimizes after 5 seconds
 - **Print PDF** fitted to:

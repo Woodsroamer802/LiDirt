@@ -256,6 +256,42 @@ private struct JobSiteOptionsSheet: View {
                 }
 
                 Section {
+                    Text("Outline the scan area first. Download and project view use this box only.")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                    HStack {
+                        Text("Side")
+                        Slider(
+                            value: Binding(
+                                get: { viewModel.outlineSideFeet },
+                                set: { viewModel.updateOutlineSideFeet($0) }
+                            ),
+                            in: JobSiteDefaults.minSideFeet...JobSiteDefaults.maxSideFeet,
+                            step: 5
+                        )
+                        Text("\(Int(viewModel.outlineSideFeet.rounded())) ft")
+                            .font(LiDirtTypography.mono)
+                            .foregroundStyle(LiDirtColors.constructionYellow)
+                            .frame(width: 56, alignment: .trailing)
+                    }
+                    Text(Self.areaHelp(sideFeet: viewModel.outlineSideFeet))
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                    Button("Place outline here") {
+                        viewModel.setSquareJobSite()
+                    }
+                    Toggle("Lock view to Job Site", isOn: $viewModel.lockViewToJobSite)
+                    Button("Set from current map view") { viewModel.setJobSiteFromCurrentView() }
+                    Button("Set from LiDAR scan") { viewModel.setJobSiteFromScan() }
+                    Button("Zoom to Job Site") { viewModel.zoomToJobSite() }
+                        .disabled(viewModel.jobSite == nil)
+                    Button("Clear Job Site", role: .destructive) { viewModel.clearJobSite() }
+                        .disabled(viewModel.jobSite == nil)
+                } header: {
+                    Text("Scan area outline")
+                }
+
+                Section {
                     TextField("Street address or place", text: $viewModel.addressText)
                         .textInputAutocapitalization(.words)
                     Button {
@@ -265,7 +301,10 @@ private struct JobSiteOptionsSheet: View {
                         if viewModel.isGeocodingAddress || viewModel.isSavingOffline {
                             ProgressView()
                         } else {
-                            Label("Download topo for address", systemImage: "arrow.down.circle")
+                            Label(
+                                "Download \(Int(viewModel.outlineSideFeet.rounded()))×\(Int(viewModel.outlineSideFeet.rounded())) ft topo",
+                                systemImage: "arrow.down.circle"
+                            )
                         }
                     }
                     .disabled(
@@ -274,21 +313,11 @@ private struct JobSiteOptionsSheet: View {
                         || viewModel.isGeocodingAddress
                         || viewModel.isSavingOffline
                     )
-                    Text("Looks up the address, frames a Job Site, and saves a high-res topo snapshot. LiDAR contours are layered when a scan is loaded — use offline at the job.")
+                    Text("Uses the outline size above — e.g. ~10×10 ft for ~100 sq ft. LiDAR contours layer in when a scan is loaded.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 } header: {
                     Text("Offline topo by address")
-                }
-
-                Section("Job Site") {
-                    Button("Set from current map view") { viewModel.setJobSiteFromCurrentView() }
-                    Button("Set from LiDAR scan") { viewModel.setJobSiteFromScan() }
-                    Button("Set ~500 ft square") { viewModel.setSquareJobSite(halfSideMeters: 75) }
-                    Button("Zoom to Job Site") { viewModel.zoomToJobSite() }
-                        .disabled(viewModel.jobSite == nil)
-                    Button("Clear Job Site", role: .destructive) { viewModel.clearJobSite() }
-                        .disabled(viewModel.jobSite == nil)
                 }
 
                 Section("Offline map") {
@@ -344,6 +373,14 @@ private struct JobSiteOptionsSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private static func areaHelp(sideFeet: Double) -> String {
+        let area = sideFeet * sideFeet
+        if area < 1_000 {
+            return String(format: "~%.0f sq ft download / scan frame", area)
+        }
+        return String(format: "~%.2g sq ft download / scan frame", area)
     }
 }
 
@@ -416,14 +453,18 @@ struct SiteMapRepresentable: UIViewRepresentable {
         map.showsCompass = true
         map.showsScale = true
         map.isRotateEnabled = true
+        // Prefer topo-looking muted standard underlay only if tiles fail; overlay replaces content.
+        map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.setRegion(viewModel.region, animated: false)
         context.coordinator.mapView = map
+        context.coordinator.applyCameraBoundary()
         context.coordinator.applyOverlays()
         return map
     }
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.viewModel = viewModel
+        context.coordinator.applyCameraBoundary()
         context.coordinator.applyOverlays()
         if abs(mapView.region.center.latitude - viewModel.region.center.latitude) > 1e-5
             || abs(mapView.region.span.latitudeDelta - viewModel.region.span.latitudeDelta) > 1e-6 {
@@ -438,9 +479,27 @@ struct SiteMapRepresentable: UIViewRepresentable {
         private var lastContourIDs: [String] = []
         private var lastJobSite: JobSiteBounds?
         private var showingJobSite = false
+        private var lastLockedBounds: JobSiteBounds?
+        private var lastLockEnabled = false
 
         init(viewModel: SiteMapViewModel) {
             self.viewModel = viewModel
+        }
+
+        func applyCameraBoundary() {
+            guard let mapView else { return }
+            let shouldLock = viewModel.lockViewToJobSite && (viewModel.jobSite?.isValid == true)
+            if shouldLock, let jobSite = viewModel.jobSite {
+                if !lastLockEnabled || lastLockedBounds != jobSite {
+                    mapView.cameraBoundary = MKMapCameraBoundary(mapRect: jobSite.mapRect)
+                    lastLockedBounds = jobSite
+                    lastLockEnabled = true
+                }
+            } else if lastLockEnabled || mapView.cameraBoundary != nil {
+                mapView.cameraBoundary = nil
+                lastLockedBounds = nil
+                lastLockEnabled = false
+            }
         }
 
         func applyOverlays() {

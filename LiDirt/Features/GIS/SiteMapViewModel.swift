@@ -29,6 +29,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var showOfflineViewer = false
     @Published var addressText: String = ""
     @Published var isGeocodingAddress = false
+    /// Outline / download square side length in feet (adjust before download).
+    @Published var outlineSideFeet: Double = JobSiteDefaults.defaultSideFeet
+    /// When on and a Job Site exists, pan/zoom stays inside that rectangle.
+    @Published var lockViewToJobSite = true
 
     let projectName: String
     let projectId: UUID?
@@ -65,6 +69,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         self.addressText = initialAddress ?? ""
         self.elevationService = elevationService
         self.offlineStore = offlineStore
+        if let jobSite, jobSite.isValid {
+            self.outlineSideFeet = JobSiteDefaults.clampSideFeet(jobSite.approxSideFeet)
+            self.lockViewToJobSite = true
+        }
 
         if let jobSite, jobSite.isValid {
             region = jobSite.region
@@ -120,6 +128,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
     func setJobSiteFromCurrentView() {
         let bounds = JobSiteBounds.from(region: region)
+        outlineSideFeet = JobSiteDefaults.clampSideFeet(bounds.approxSideFeet)
         applyJobSite(bounds)
         zoomToJobSite()
     }
@@ -135,14 +144,29 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             heightmap: heightmap,
             origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
         )
+        outlineSideFeet = JobSiteDefaults.clampSideFeet(bounds.approxSideFeet)
         applyJobSite(bounds)
         zoomToJobSite()
     }
 
-    func setSquareJobSite(halfSideMeters: Double = 40) {
-        let center = userCoordinate ?? region.center
-        applyJobSite(JobSiteBounds.square(center: center, halfSideMeters: halfSideMeters))
+    /// Place / resize the outline using the adjustable side length (feet).
+    func setSquareJobSite(sideFeet: Double? = nil) {
+        let feet = JobSiteDefaults.clampSideFeet(sideFeet ?? outlineSideFeet)
+        outlineSideFeet = feet
+        let center = jobSite?.center ?? userCoordinate ?? region.center
+        applyJobSite(JobSiteBounds.square(center: center, sideFeet: feet))
         zoomToJobSite()
+    }
+
+    /// Live-resize the existing Job Site (or create one) when the size slider moves.
+    func updateOutlineSideFeet(_ feet: Double) {
+        let clamped = JobSiteDefaults.clampSideFeet(feet)
+        outlineSideFeet = clamped
+        let center = jobSite?.center ?? userCoordinate ?? region.center
+        applyJobSite(JobSiteBounds.square(center: center, sideFeet: clamped), announce: false)
+        if lockViewToJobSite {
+            region = JobSiteBounds.square(center: center, sideFeet: clamped).region
+        }
     }
 
     func clearJobSite() {
@@ -216,13 +240,15 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         statusMessage = "Offline Job Site removed."
     }
 
-    /// Geocode an address, frame a Job Site, then download a topo snapshot (with LiDAR contours when available) for offline use.
-    func downloadTopoForAddress(halfSideMeters: Double = 75) {
+    /// Geocode an address, frame a Job Site at the current outline size, then download for offline use.
+    func downloadTopoForAddress() {
         let query = addressText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             offlineError = "Enter a street address or place name."
             return
         }
+        let sideFeet = JobSiteDefaults.clampSideFeet(outlineSideFeet)
+        outlineSideFeet = sideFeet
         isGeocodingAddress = true
         offlineProgress = "Looking up address…"
         offlineError = nil
@@ -235,16 +261,14 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 }
                 if Task.isCancelled { return }
                 let coord = location.coordinate
-                let bounds = JobSiteBounds.square(center: coord, halfSideMeters: halfSideMeters)
+                let bounds = JobSiteBounds.square(center: coord, sideFeet: sideFeet)
                 applyJobSite(bounds)
                 region = bounds.region
                 userCoordinate = coord
                 isGeocodingAddress = false
-                offlineProgress = "Downloading topo for \(query)…"
-                // Rebuild contours for the new area (LiDAR still placed by scan GPS if present).
+                offlineProgress = String(format: "Downloading ~%.0f×%.0f ft topo for %@…", sideFeet, sideFeet, query)
                 rebuildContours()
                 statusMessage = "Address found — downloading topo + LiDAR layer for offline…"
-                // Save offline package (topo snapshot layered with any LiDAR contours).
                 guard let projectId else {
                     isGeocodingAddress = false
                     offlineProgress = nil
@@ -270,7 +294,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 let lidarNote = contourPolylines.isEmpty
                     ? "Topo only (no LiDAR contours yet — scan on site to refresh)."
                     : "Topo + LiDAR contours layered."
-                statusMessage = "Offline Job Site ready for \(query). \(lidarNote)"
+                statusMessage = String(
+                    format: "Offline Job Site ready (~%.0f×%.0f ft) for %@. %@",
+                    sideFeet, sideFeet, query, lidarNote
+                )
             } catch {
                 if Task.isCancelled { return }
                 isGeocodingAddress = false
@@ -280,14 +307,14 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         }
     }
 
-    private func applyJobSite(_ bounds: JobSiteBounds?) {
+    private func applyJobSite(_ bounds: JobSiteBounds?, announce: Bool = true) {
         jobSite = bounds
         onJobSiteChange?(bounds)
-        if let bounds {
+        if announce, let bounds {
             statusMessage = String(
-                format: "Job Site set — ~%.0f × %.0f ft. Zoom or save offline snapshot.",
-                bounds.latitudeDelta * 364_000,
-                bounds.longitudeDelta * 364_000 * cos(bounds.center.latitude * .pi / 180)
+                format: "Job Site set — ~%.0f × %.0f ft. View locked to this outline.",
+                bounds.sideFeetNS,
+                bounds.sideFeetEW
             )
         }
     }
@@ -450,12 +477,18 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 : String(format: "%.2g in", contourIntervalInches)
             statusMessage =
                 "Fused \(surface) @ \(label) — 3DEP + \(fused.lidarSampleCount) LiDAR cells (\(contourPolylines.count) segments)."
-            if !didFitScanRegion, let lat = orientation.latitude, let lon = orientation.longitude {
-                region = ContourMapGeoref.region(
-                    heightmap: fused.heightmap,
-                    origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
-                )
-                didFitScanRegion = true
+            // Prefer the outlined Job Site; never yank the camera to the raw DEM footprint when locked.
+            if !didFitScanRegion {
+                if let jobSite, jobSite.isValid {
+                    region = jobSite.region
+                    didFitScanRegion = true
+                } else if let lat = orientation.latitude, let lon = orientation.longitude {
+                    region = ContourMapGeoref.region(
+                        heightmap: fused.heightmap,
+                        origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                    )
+                    didFitScanRegion = true
+                }
             }
         } else if lidarHeightmap != nil, orientation.latitude != nil {
             statusMessage = "LiDAR \(surface) contours on topo — fuse pending or unavailable."
@@ -489,7 +522,7 @@ extension SiteMapViewModel: CLLocationManagerDelegate {
             let coord = location.coordinate
             let firstFix = userCoordinate == nil
             userCoordinate = coord
-            if firstFix, lidarHeightmap == nil {
+            if firstFix, lidarHeightmap == nil, jobSite == nil {
                 region = MKCoordinateRegion(
                     center: coord,
                     span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)

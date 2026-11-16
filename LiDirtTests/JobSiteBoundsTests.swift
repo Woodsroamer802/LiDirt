@@ -24,6 +24,23 @@ final class JobSiteBoundsTests: XCTestCase {
         XCTAssertEqual(bounds.cornerCoordinates.count, 4)
     }
 
+    func testSideFeetResizeKeepsCenter() {
+        let center = CLLocationCoordinate2D(latitude: 44.0, longitude: -73.0)
+        let small = JobSiteBounds.square(center: center, sideFeet: 10) // ~100 sq ft
+        XCTAssertTrue(small.isValid)
+        XCTAssertEqual(small.approxSideFeet, 10, accuracy: 0.5)
+        let resized = small.resizedToSideFeet(100)
+        XCTAssertEqual(resized.center.latitude, center.latitude, accuracy: 1e-6)
+        XCTAssertEqual(resized.approxSideFeet, 100, accuracy: 2)
+        XCTAssertFalse(resized.mapRect.isNull)
+    }
+
+    func testDefaultsClamp() {
+        XCTAssertEqual(JobSiteDefaults.clampSideFeet(1), JobSiteDefaults.minSideFeet)
+        XCTAssertEqual(JobSiteDefaults.clampSideFeet(5000), JobSiteDefaults.maxSideFeet)
+        XCTAssertEqual(JobSiteDefaults.halfSideMeters(sideFeet: 100), 100 * 0.3048 / 2, accuracy: 1e-9)
+    }
+
     func testTileMathCoversBounds() {
         let bounds = JobSiteBounds(north: 44.51, south: 44.50, east: -73.19, west: -73.20)
         let tiles = MapTileMath.tilesCovering(bounds: bounds, zoom: 14)
