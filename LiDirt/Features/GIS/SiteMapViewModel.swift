@@ -37,6 +37,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var linkSquareSides = true
     /// When on and a Job Site exists, pan/zoom stays inside that rectangle.
     @Published var lockViewToJobSite = true
+    /// On-map photo-crop style Job Site editing (drag / pinch / rotate).
+    @Published var isEditingJobSiteCrop = false
 
     /// Back-compat helper for labels — geometric mean of width × length.
     var outlineSideFeet: Double {
@@ -63,6 +65,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     private var didFitScanRegion = false
     private var cachedPreparedKey: String?
     private var cachedPreparedDEM: HeightmapResult?
+    private var cropEditBaseline: JobSiteBounds?
+    private var lockBeforeCropEdit = true
 
     init(
         projectName: String = "Site",
@@ -88,9 +92,9 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         self.offlineStore = offlineStore
         if let jobSite, jobSite.isValid {
             // Assign stored properties directly — cannot call methods before super.init.
-            self.outlineWidthFeet = JobSiteDefaults.clampSideFeet(jobSite.sideFeetEW)
-            self.outlineLengthFeet = JobSiteDefaults.clampSideFeet(jobSite.sideFeetNS)
-            self.linkSquareSides = abs(jobSite.sideFeetNS - jobSite.sideFeetEW) < 1.5
+            self.outlineWidthFeet = JobSiteDefaults.clampSideFeet(jobSite.widthFeet)
+            self.outlineLengthFeet = JobSiteDefaults.clampSideFeet(jobSite.lengthFeet)
+            self.linkSquareSides = abs(jobSite.widthFeet - jobSite.lengthFeet) < 1.5
             self.lockViewToJobSite = true
             region = jobSite.region
             didFitScanRegion = true
@@ -188,8 +192,62 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         outlineWidthFeet = width
         outlineLengthFeet = length
         let center = userCoordinate ?? region.center
-        applyJobSite(JobSiteBounds.rectangle(center: center, widthFeet: width, lengthFeet: length))
+        let rotation = jobSite?.rotationDegrees ?? 0
+        applyJobSite(JobSiteBounds.rectangle(
+            center: center,
+            widthFeet: width,
+            lengthFeet: length,
+            rotationDegrees: rotation
+        ))
         zoomToJobSite()
+    }
+
+    /// Enter photo-crop style editing on the map (drag / pinch / twist).
+    func beginJobSiteCropEdit() {
+        if jobSite == nil || jobSite?.isValid != true {
+            placeOutlineAtMapCenter()
+        }
+        guard let current = jobSite, current.isValid else { return }
+        cropEditBaseline = current
+        lockBeforeCropEdit = lockViewToJobSite
+        lockViewToJobSite = false
+        isEditingJobSiteCrop = true
+        var preview = current.region
+        preview.span.latitudeDelta *= 1.65
+        preview.span.longitudeDelta *= 1.65
+        region = preview
+        statusMessage = "Drag to move · pinch to resize · twist to rotate"
+    }
+
+    /// Live update while fingers are on the crop frame (no DEM rebuild until Done).
+    func updateJobSiteFromCrop(_ bounds: JobSiteBounds) {
+        guard isEditingJobSiteCrop else { return }
+        jobSite = bounds
+        syncOutlineDimensions(from: bounds)
+        linkSquareSides = abs(bounds.widthFeet - bounds.lengthFeet) < 1.5
+        statusMessage = String(
+            format: "%.0f × %.0f ft · %.0f°",
+            bounds.widthFeet,
+            bounds.lengthFeet,
+            bounds.rotationDegrees.truncatingRemainder(dividingBy: 360)
+        )
+    }
+
+    func finishJobSiteCropEdit(save: Bool) {
+        guard isEditingJobSiteCrop else { return }
+        isEditingJobSiteCrop = false
+        if save, let jobSite, jobSite.isValid {
+            applyJobSite(jobSite)
+            zoomToJobSite()
+        } else if let baseline = cropEditBaseline {
+            applyJobSite(baseline, announce: false)
+            syncOutlineDimensions(from: baseline)
+            linkSquareSides = abs(baseline.widthFeet - baseline.lengthFeet) < 1.5
+            region = baseline.region
+            statusMessage = "Job Site crop cancelled"
+        }
+        lockViewToJobSite = lockBeforeCropEdit
+        cropEditBaseline = nil
     }
 
     func updateOutlineWidthFeet(_ feet: Double) {
@@ -269,7 +327,13 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         outlineWidthFeet = width
         outlineLengthFeet = length
         let center = jobSite?.center ?? userCoordinate ?? region.center
-        let bounds = JobSiteBounds.rectangle(center: center, widthFeet: width, lengthFeet: length)
+        let rotation = jobSite?.rotationDegrees ?? 0
+        let bounds = JobSiteBounds.rectangle(
+            center: center,
+            widthFeet: width,
+            lengthFeet: length,
+            rotationDegrees: rotation
+        )
         applyJobSite(bounds, announce: announce)
         if lockViewToJobSite {
             region = bounds.region
@@ -277,8 +341,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     }
 
     private func syncOutlineDimensions(from bounds: JobSiteBounds) {
-        outlineWidthFeet = JobSiteDefaults.clampSideFeet(bounds.sideFeetEW)
-        outlineLengthFeet = JobSiteDefaults.clampSideFeet(bounds.sideFeetNS)
+        outlineWidthFeet = JobSiteDefaults.clampSideFeet(bounds.widthFeet)
+        outlineLengthFeet = JobSiteDefaults.clampSideFeet(bounds.lengthFeet)
     }
 
     func saveJobSiteOffline() {
@@ -435,10 +499,14 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         jobSite = bounds
         onJobSiteChange?(bounds)
         if announce, let bounds {
+            let rotationNote = abs(bounds.rotationDegrees.truncatingRemainder(dividingBy: 360)) < 0.5
+                ? ""
+                : String(format: " · %.0f°", bounds.rotationDegrees.truncatingRemainder(dividingBy: 360))
             statusMessage = String(
-                format: "Job Site set — ~%.0f × %.0f ft. View locked to this outline.",
-                bounds.sideFeetNS,
-                bounds.sideFeetEW
+                format: "Job Site set — ~%.0f × %.0f ft%@.",
+                bounds.widthFeet,
+                bounds.lengthFeet,
+                rotationNote
             )
         }
         // Re-render fused surface for the new outline size.
