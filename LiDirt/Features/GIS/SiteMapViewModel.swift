@@ -29,10 +29,19 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var showOfflineViewer = false
     @Published var addressText: String = ""
     @Published var isGeocodingAddress = false
-    /// Outline / download square side length in feet (adjust before download).
-    @Published var outlineSideFeet: Double = JobSiteDefaults.defaultSideFeet
+    /// Outline width (east–west) in feet.
+    @Published var outlineWidthFeet: Double = JobSiteDefaults.defaultSideFeet
+    /// Outline length (north–south) in feet.
+    @Published var outlineLengthFeet: Double = JobSiteDefaults.defaultSideFeet
+    /// When on, width/length stay equal (square).
+    @Published var linkSquareSides = true
     /// When on and a Job Site exists, pan/zoom stays inside that rectangle.
     @Published var lockViewToJobSite = true
+
+    /// Back-compat helper for labels — geometric mean of width × length.
+    var outlineSideFeet: Double {
+        sqrt(max(outlineWidthFeet, 1) * max(outlineLengthFeet, 1))
+    }
     /// Custom map built from 3DEP + LiDAR + GPS (hillshade + contours) — sharp at pad scale.
     @Published var fusedMapImage: UIImage?
     @Published var fusedMapBounds: JobSiteBounds?
@@ -78,7 +87,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         self.elevationService = elevationService
         self.offlineStore = offlineStore
         if let jobSite, jobSite.isValid {
-            self.outlineSideFeet = JobSiteDefaults.clampSideFeet(jobSite.approxSideFeet)
+            self.syncOutlineDimensions(from: jobSite)
+            self.linkSquareSides = abs(jobSite.sideFeetNS - jobSite.sideFeetEW) < 1.5
             self.lockViewToJobSite = true
         }
 
@@ -149,7 +159,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
     func setJobSiteFromCurrentView() {
         let bounds = JobSiteBounds.from(region: region)
-        outlineSideFeet = JobSiteDefaults.clampSideFeet(bounds.approxSideFeet)
+        syncOutlineDimensions(from: bounds)
+        linkSquareSides = abs(bounds.sideFeetNS - bounds.sideFeetEW) < 1.5
         applyJobSite(bounds)
         zoomToJobSite()
     }
@@ -165,28 +176,82 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             heightmap: heightmap,
             origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
         )
-        outlineSideFeet = JobSiteDefaults.clampSideFeet(bounds.approxSideFeet)
+        syncOutlineDimensions(from: bounds)
+        linkSquareSides = abs(bounds.sideFeetNS - bounds.sideFeetEW) < 1.5
         applyJobSite(bounds)
         zoomToJobSite()
     }
 
-    /// Place / resize the outline using the adjustable side length (feet).
-    func setSquareJobSite(sideFeet: Double? = nil) {
-        let feet = JobSiteDefaults.clampSideFeet(sideFeet ?? outlineSideFeet)
-        outlineSideFeet = feet
-        let center = jobSite?.center ?? userCoordinate ?? region.center
-        applyJobSite(JobSiteBounds.square(center: center, sideFeet: feet))
+    /// Place / resize the outline using current width × length (feet).
+    func placeOutlineAtMapCenter() {
+        let width = JobSiteDefaults.clampSideFeet(outlineWidthFeet)
+        let length = JobSiteDefaults.clampSideFeet(outlineLengthFeet)
+        outlineWidthFeet = width
+        outlineLengthFeet = length
+        let center = userCoordinate ?? region.center
+        applyJobSite(JobSiteBounds.rectangle(center: center, widthFeet: width, lengthFeet: length))
         zoomToJobSite()
     }
 
-    /// Live-resize the existing Job Site (or create one) when the size slider moves.
-    func updateOutlineSideFeet(_ feet: Double) {
+    func updateOutlineWidthFeet(_ feet: Double) {
         let clamped = JobSiteDefaults.clampSideFeet(feet)
-        outlineSideFeet = clamped
-        let center = jobSite?.center ?? userCoordinate ?? region.center
-        applyJobSite(JobSiteBounds.square(center: center, sideFeet: clamped), announce: false)
-        if lockViewToJobSite {
-            region = JobSiteBounds.square(center: center, sideFeet: clamped).region
+        outlineWidthFeet = clamped
+        if linkSquareSides { outlineLengthFeet = clamped }
+        applyCurrentOutlineDimensions(announce: false)
+    }
+
+    func updateOutlineLengthFeet(_ feet: Double) {
+        let clamped = JobSiteDefaults.clampSideFeet(feet)
+        outlineLengthFeet = clamped
+        if linkSquareSides { outlineWidthFeet = clamped }
+        applyCurrentOutlineDimensions(announce: false)
+    }
+
+    func setLinkSquareSides(_ linked: Bool) {
+        linkSquareSides = linked
+        if linked {
+            let side = JobSiteDefaults.clampSideFeet((outlineWidthFeet + outlineLengthFeet) / 2)
+            outlineWidthFeet = side
+            outlineLengthFeet = side
+            applyCurrentOutlineDimensions(announce: false)
+        }
+    }
+
+    /// Move the existing outline (or create one) so its center matches the current map center.
+    func moveJobSiteToMapCenter() {
+        let center = region.center
+        if let jobSite {
+            applyJobSite(jobSite.recentered(to: center))
+        } else {
+            placeOutlineAtMapCenter()
+            return
+        }
+        zoomToJobSite()
+    }
+
+    func moveJobSiteToGPS() {
+        guard let coord = userCoordinate else {
+            contourNote = "No GPS fix yet — wait for location or move to map center."
+            return
+        }
+        if let jobSite {
+            applyJobSite(jobSite.recentered(to: coord))
+        } else {
+            let width = JobSiteDefaults.clampSideFeet(outlineWidthFeet)
+            let length = JobSiteDefaults.clampSideFeet(outlineLengthFeet)
+            applyJobSite(JobSiteBounds.rectangle(center: coord, widthFeet: width, lengthFeet: length))
+        }
+        zoomToJobSite()
+    }
+
+    func nudgeJobSite(eastFeet: Double, northFeet: Double) {
+        guard let jobSite else {
+            placeOutlineAtMapCenter()
+            return
+        }
+        applyJobSite(jobSite.nudged(eastFeet: eastFeet, northFeet: northFeet))
+        if lockViewToJobSite, let updated = self.jobSite {
+            region = updated.region
         }
     }
 
@@ -197,6 +262,24 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     func zoomToJobSite() {
         guard let jobSite, jobSite.isValid else { return }
         region = jobSite.region
+    }
+
+    private func applyCurrentOutlineDimensions(announce: Bool) {
+        let width = JobSiteDefaults.clampSideFeet(outlineWidthFeet)
+        let length = JobSiteDefaults.clampSideFeet(outlineLengthFeet)
+        outlineWidthFeet = width
+        outlineLengthFeet = length
+        let center = jobSite?.center ?? userCoordinate ?? region.center
+        let bounds = JobSiteBounds.rectangle(center: center, widthFeet: width, lengthFeet: length)
+        applyJobSite(bounds, announce: announce)
+        if lockViewToJobSite {
+            region = bounds.region
+        }
+    }
+
+    private func syncOutlineDimensions(from bounds: JobSiteBounds) {
+        outlineWidthFeet = JobSiteDefaults.clampSideFeet(bounds.sideFeetEW)
+        outlineLengthFeet = JobSiteDefaults.clampSideFeet(bounds.sideFeetNS)
     }
 
     func saveJobSiteOffline() {
@@ -274,8 +357,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             offlineError = "Enter a street address or place name."
             return
         }
-        let sideFeet = JobSiteDefaults.clampSideFeet(outlineSideFeet)
-        outlineSideFeet = sideFeet
+        let widthFeet = JobSiteDefaults.clampSideFeet(outlineWidthFeet)
+        let lengthFeet = JobSiteDefaults.clampSideFeet(outlineLengthFeet)
+        outlineWidthFeet = widthFeet
+        outlineLengthFeet = lengthFeet
         isGeocodingAddress = true
         offlineProgress = "Looking up address…"
         offlineError = nil
@@ -288,12 +373,19 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 }
                 if Task.isCancelled { return }
                 let coord = location.coordinate
-                let bounds = JobSiteBounds.square(center: coord, sideFeet: sideFeet)
+                let bounds = JobSiteBounds.rectangle(
+                    center: coord,
+                    widthFeet: widthFeet,
+                    lengthFeet: lengthFeet
+                )
                 applyJobSite(bounds)
                 region = bounds.region
                 userCoordinate = coord
                 isGeocodingAddress = false
-                offlineProgress = String(format: "Downloading ~%.0f×%.0f ft topo for %@…", sideFeet, sideFeet, query)
+                offlineProgress = String(
+                    format: "Downloading ~%.0f×%.0f ft topo for %@…",
+                    widthFeet, lengthFeet, query
+                )
                 rebuildContours()
                 statusMessage = "Address found — downloading topo + LiDAR layer for offline…"
                 guard let projectId else {
@@ -329,7 +421,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                     : "Fused 3DEP + LiDAR map ready offline."
                 statusMessage = String(
                     format: "Offline Job Site ready (~%.0f×%.0f ft) for %@. %@",
-                    sideFeet, sideFeet, query, lidarNote
+                    widthFeet, lengthFeet, query, lidarNote
                 )
             } catch {
                 if Task.isCancelled { return }

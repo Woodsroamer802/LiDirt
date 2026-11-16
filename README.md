@@ -117,8 +117,8 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 
 From a project (**Job Site map**) or scan review:
 
-- **Fused surface map** — a new map rendered from USGS 3DEP + phone LiDAR + GPS (hillshade + contours), sharp at pad scale (~140 sq ft) without USGS print-tile pixelation
-- Outline the **scan area first** with an adjustable square (side length in feet) — download only that size
+- **Fused surface map** — 3DEP + LiDAR + GPS hillshade/contours at adaptive high resolution (retina) for pad-scale sharpness
+- Outline as a **rectangle or square** (width × length in feet); **reposition** with map-center / GPS / Nudge N-S-E-W
 - **Lock view to Job Site** so project map stays inside the outline
 - Faster scan→map: parallel 3DEP fetch, background fuse/contours, chained contour overlays
 - Compact **Map options** sheet; offline uses the same fused render when a scan is loaded

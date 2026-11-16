@@ -266,30 +266,81 @@ private struct JobSiteOptionsSheet: View {
                 }
 
                 Section {
-                    Text("Outline the scan area first. Download and project view use this box only.")
+                    Text("Outline the scan area first. Set width × length (rectangle), move it, then download / scan.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
+                    Toggle("Square (link sides)", isOn: Binding(
+                        get: { viewModel.linkSquareSides },
+                        set: { viewModel.setLinkSquareSides($0) }
+                    ))
                     HStack {
-                        Text("Side")
+                        Text("Width E–W")
                         Slider(
                             value: Binding(
-                                get: { viewModel.outlineSideFeet },
-                                set: { viewModel.updateOutlineSideFeet($0) }
+                                get: { viewModel.outlineWidthFeet },
+                                set: { viewModel.updateOutlineWidthFeet($0) }
                             ),
                             in: JobSiteDefaults.minSideFeet...JobSiteDefaults.maxSideFeet,
                             step: 5
                         )
-                        Text("\(Int(viewModel.outlineSideFeet.rounded())) ft")
+                        Text("\(Int(viewModel.outlineWidthFeet.rounded())) ft")
                             .font(LiDirtTypography.mono)
                             .foregroundStyle(LiDirtColors.constructionYellow)
                             .frame(width: 56, alignment: .trailing)
                     }
-                    Text(Self.areaHelp(sideFeet: viewModel.outlineSideFeet))
+                    HStack {
+                        Text("Length N–S")
+                        Slider(
+                            value: Binding(
+                                get: { viewModel.outlineLengthFeet },
+                                set: { viewModel.updateOutlineLengthFeet($0) }
+                            ),
+                            in: JobSiteDefaults.minSideFeet...JobSiteDefaults.maxSideFeet,
+                            step: 5
+                        )
+                        .disabled(viewModel.linkSquareSides)
+                        Text("\(Int(viewModel.outlineLengthFeet.rounded())) ft")
+                            .font(LiDirtTypography.mono)
+                            .foregroundStyle(LiDirtColors.constructionYellow)
+                            .frame(width: 56, alignment: .trailing)
+                    }
+                    Text(Self.areaHelp(
+                        widthFeet: viewModel.outlineWidthFeet,
+                        lengthFeet: viewModel.outlineLengthFeet
+                    ))
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textMuted)
+
+                    Button("Place outline at map center") {
+                        viewModel.placeOutlineAtMapCenter()
+                    }
+                    Button("Move outline to map center") {
+                        viewModel.moveJobSiteToMapCenter()
+                    }
+                    .disabled(viewModel.jobSite == nil)
+                    Button("Move outline to GPS") {
+                        viewModel.moveJobSiteToGPS()
+                    }
+
+                    Text("Nudge border")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
-                    Button("Place outline here") {
-                        viewModel.setSquareJobSite()
+                    HStack(spacing: 8) {
+                        Button("← W") {
+                            viewModel.nudgeJobSite(eastFeet: -JobSiteDefaults.nudgeFeet, northFeet: 0)
+                        }
+                        Button("N ↑") {
+                            viewModel.nudgeJobSite(eastFeet: 0, northFeet: JobSiteDefaults.nudgeFeet)
+                        }
+                        Button("S ↓") {
+                            viewModel.nudgeJobSite(eastFeet: 0, northFeet: -JobSiteDefaults.nudgeFeet)
+                        }
+                        Button("E →") {
+                            viewModel.nudgeJobSite(eastFeet: JobSiteDefaults.nudgeFeet, northFeet: 0)
+                        }
                     }
+                    .disabled(viewModel.jobSite == nil)
+
                     Toggle("Lock view to Job Site", isOn: $viewModel.lockViewToJobSite)
                     Button("Set from current map view") { viewModel.setJobSiteFromCurrentView() }
                     Button("Set from LiDAR scan") { viewModel.setJobSiteFromScan() }
@@ -312,7 +363,7 @@ private struct JobSiteOptionsSheet: View {
                             ProgressView()
                         } else {
                             Label(
-                                "Download \(Int(viewModel.outlineSideFeet.rounded()))×\(Int(viewModel.outlineSideFeet.rounded())) ft topo",
+                                "Download \(Int(viewModel.outlineWidthFeet.rounded()))×\(Int(viewModel.outlineLengthFeet.rounded())) ft topo",
                                 systemImage: "arrow.down.circle"
                             )
                         }
@@ -323,7 +374,7 @@ private struct JobSiteOptionsSheet: View {
                         || viewModel.isGeocodingAddress
                         || viewModel.isSavingOffline
                     )
-                    Text("Uses the outline size above — e.g. ~10×10 ft for ~100 sq ft. LiDAR contours layer in when a scan is loaded.")
+                    Text("Uses the outline size above — rectangle or square. LiDAR fuses in when a scan is loaded.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 } header: {
@@ -385,12 +436,12 @@ private struct JobSiteOptionsSheet: View {
         .preferredColorScheme(.dark)
     }
 
-    private static func areaHelp(sideFeet: Double) -> String {
-        let area = sideFeet * sideFeet
+    private static func areaHelp(widthFeet: Double, lengthFeet: Double) -> String {
+        let area = widthFeet * lengthFeet
         if area < 1_000 {
-            return String(format: "~%.0f sq ft download / scan frame", area)
+            return String(format: "~%.0f×%.0f ft · %.0f sq ft", widthFeet, lengthFeet, area)
         }
-        return String(format: "~%.2g sq ft download / scan frame", area)
+        return String(format: "~%.0f×%.0f ft · %.2g sq ft", widthFeet, lengthFeet, area)
     }
 }
 
