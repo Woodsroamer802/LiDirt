@@ -12,6 +12,7 @@ struct ProjectDetailView: View {
     @State private var pendingDelete: ScanSummary?
     @State private var showDeleteConfirm = false
     @State private var showDeleteProjectConfirm = false
+    @State private var showSiteMap = false
     @Environment(\.dismiss) private var dismiss
 
     private var project: Project? {
@@ -35,6 +36,11 @@ struct ProjectDetailView: View {
                 Button("Delete project", role: .destructive) {
                     showDeleteProjectConfirm = true
                 }
+            }
+        }
+        .sheet(isPresented: $showSiteMap) {
+            NavigationStack {
+                SiteMapView(parcelSourceURL: environment.parcelSourceURL)
             }
         }
         .fullScreenCover(isPresented: $showScan) {
@@ -130,6 +136,18 @@ struct ProjectDetailView: View {
                             .foregroundStyle(LiDirtColors.textSecondary)
                     }
                     capabilityBadge
+                    Button {
+                        showSiteMap = true
+                    } label: {
+                        Label("Site map (GIS / boundaries)", systemImage: "map")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(LiDirtSecondaryButtonStyle())
+
+                    Text(GISDisclaimer.trespass)
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+
                     Button {
                         startScanOrBlock()
                     } label: {

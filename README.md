@@ -79,9 +79,19 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 - `Features/Projects` — local project list/detail
 - `LiDirtTests` — DEMBuilder, QualityScorer, MetadataCodec
 
-## Out of scope (this MVP)
+## Site map / GIS (trespass awareness)
 
-Invoices, Foreman Mode, full GIS overlays, Stripe, web ops dashboard.
+From a project, open **Site map (GIS / boundaries)**:
+
+- Live GPS position + compass
+- Optional **USGS topo** tile overlay (public National Map)
+- Optional **parcel / boundary** polygons from a URL you set in **Settings → GIS / property lines** (county ArcGIS FeatureServer layer root, or GeoJSON)
+
+This is **OnX-like awareness**, not OnX: LiDirt does not ship a licensed nationwide private-parcel database. Boundaries are approximate and for helping avoid accidental trespass — not a survey or title opinion.
+
+## Out of scope (still deferred)
+
+Invoices, Foreman Mode, Stripe, full web ops dashboard, licensed nationwide parcel DB.
 
 ## Spec / product docs
 
