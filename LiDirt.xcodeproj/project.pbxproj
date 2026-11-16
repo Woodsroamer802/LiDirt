@@ -170,7 +170,7 @@
 			path = Auth;
 			sourceTree = "<group>";
 		};
-		BCCDA8A1B30D4E26AC0DD2F9 		E59EE7655F6044AE8F3BF543 /* GIS */ = {
+		E59EE7655F6044AE8F3BF543 /* GIS */ = {
 			isa = PBXGroup;
 			children = (
 				42A22D423E634C8AB54EC12E /* GISDisclaimer.swift */,
@@ -182,7 +182,7 @@
 			path = GIS;
 			sourceTree = "<group>";
 		};
-/* Features */ = {
+		BCCDA8A1B30D4E26AC0DD2F9 /* Features */ = {
 			isa = PBXGroup;
 			children = (
 				D6C84B1EAF45412B9B320611,

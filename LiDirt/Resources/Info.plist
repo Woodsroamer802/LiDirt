@@ -33,7 +33,6 @@
 		<key>FullAccuracyPurpose</key>
 		<string>LiDirt needs full GPS accuracy briefly to place and orient the site map. Still approximate — not a certified survey.</string>
 	</dict>
-	<!-- SwiftUI @main WindowGroup owns the scene; an empty scene manifest can leave a blank launch on device. -->
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
