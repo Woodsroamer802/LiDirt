@@ -11,6 +11,8 @@ struct ProjectDetailView: View {
     @State private var showUpload = false
     @State private var pendingDelete: ScanSummary?
     @State private var showDeleteConfirm = false
+    @State private var showDeleteProjectConfirm = false
+    @Environment(\.dismiss) private var dismiss
 
     private var project: Project? {
         environment.projectStore.project(id: projectId)
@@ -28,6 +30,13 @@ struct ProjectDetailView: View {
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
         .navigationTitle(project?.name ?? "Project")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Delete project", role: .destructive) {
+                    showDeleteProjectConfirm = true
+                }
+            }
+        }
         .fullScreenCover(isPresented: $showScan) {
             ScanSessionView(projectId: projectId) { scanId, heightmap, metrics, duration, pins, projectId, orientation in
                 showScan = false
@@ -100,6 +109,14 @@ struct ProjectDetailView: View {
             }
         } message: {
             Text("Removes the local package and list entry. This cannot be undone.")
+        }
+        .alert("Delete this project?", isPresented: $showDeleteProjectConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                deleteEntireProject()
+            }
+        } message: {
+            Text("Removes the project and all of its local scans. This cannot be undone.")
         }
     }
 
@@ -182,6 +199,15 @@ struct ProjectDetailView: View {
         _ = environment.projectStore.deleteScanSummary(projectId: projectId, scanId: scanId)
         environment.localScanStore.deletePackage(scanId: scanId)
         environment.uploadQueue.remove(scanId)
+    }
+
+    private func deleteEntireProject() {
+        guard let removed = environment.projectStore.deleteProject(id: projectId) else { return }
+        for scan in removed.scanSummaries {
+            environment.localScanStore.deletePackage(scanId: scan.id)
+            environment.uploadQueue.remove(scan.id)
+        }
+        dismiss()
     }
 
     private func beginUpload(_ payload: ReviewPayload, force: Bool) {

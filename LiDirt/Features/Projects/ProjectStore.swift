@@ -79,6 +79,15 @@ final class ProjectStore: ObservableObject {
         return removed
     }
 
+    /// Removes the project and returns it so callers can delete local scan packages.
+    @discardableResult
+    func deleteProject(id: UUID) -> Project? {
+        guard let index = projects.firstIndex(where: { $0.id == id }) else { return nil }
+        let removed = projects.remove(at: index)
+        persist()
+        return removed
+    }
+
     private var projectsFileURL: URL {
         paths.projectsDirectory.appendingPathComponent("projects.json")
     }

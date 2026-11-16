@@ -92,7 +92,9 @@ final class ScanOrientationService: NSObject, ObservableObject {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.headingFilter = 2
+        manager.distanceFilter = 2
+        manager.headingFilter = 1
+        manager.headingOrientation = .portrait
         authorizationStatus = manager.authorizationStatus
     }
 
@@ -103,6 +105,10 @@ final class ScanOrientationService: NSObject, ObservableObject {
             manager.requestWhenInUseAuthorization()
             statusMessage = "Requesting location…"
         case .authorizedWhenInUse, .authorizedAlways:
+            // Ask for full accuracy when reduced-accuracy mode is on (iOS 14+).
+            if #available(iOS 14.0, *), manager.accuracyAuthorization == .reducedAccuracy {
+                manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "FullAccuracyPurpose")
+            }
             startUpdating()
         case .denied, .restricted:
             statusMessage = "Location/heading denied — DEM stays local frame"

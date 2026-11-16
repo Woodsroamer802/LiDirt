@@ -139,14 +139,24 @@ struct ScanReviewView: View {
 
     private var orientationSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Orientation")
+            Text("Location & orientation")
                 .font(LiDirtTypography.headline)
                 .foregroundStyle(LiDirtColors.textPrimary)
             Text(orientation.frameAlignedToNorth
-                 ? "Aligned to phone true/magnetic north when available."
+                 ? "Heightmap aligned using phone GPS + compass (prefer true north)."
                  : "Local AR frame (north align unavailable or denied).")
                 .font(LiDirtTypography.body)
                 .foregroundStyle(LiDirtColors.textSecondary)
+            if let lat = orientation.latitude, let lon = orientation.longitude {
+                Text(String(
+                    format: "GPS %.5f, %.5f (±%.0f m)",
+                    lat,
+                    lon,
+                    orientation.horizontalAccuracyM ?? -1
+                ))
+                .font(LiDirtTypography.mono)
+                .foregroundStyle(LiDirtColors.textMuted)
+            }
             if let heading = orientation.headingDegrees {
                 Text(String(format: "Heading %.0f° (%@)", heading, orientation.headingSource))
                     .font(LiDirtTypography.caption)

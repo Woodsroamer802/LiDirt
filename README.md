@@ -23,10 +23,13 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 6. Allow location when prompted (optional; used for approximate north).
 7. Tap **Begin pass** (3–2–1 countdown) → walk → **End pass** → **Start next pass** → **Begin pass** again for multi-pass averaging → **Finish scan** → review → **Upload**.
 8. Delete finished scans from the project list (swipe) or review screen (confirm).
+9. Delete whole projects from the project list (swipe) or project detail (**Delete project**).
 
 ### Field tips
 
+- Countdown uses large black blocky digits on yellow — wait for it before walking.
 - Do not walk until countdown finishes / Begin pass — sampling stays off until then.
+- Allow Location when prompted so GPS + compass can orient the heightmap to north (approximate).
 - Green on the coverage tint means the **sample goal is met** (≥8 samples/cell), not “touched once.” Amber = incomplete.
 - Move at a steady walking pace; pause if tracking says “Move slower / better light.”
 - Revisit amber areas; end/start passes yourself for multi-pass averaging.
