@@ -16,7 +16,7 @@ targets:
         excludes:
           - "**/*.md"
     settings:
-      INFOPLIST_FILE: LiDirt/Info.plist
+      INFOPLIST_FILE: $(SRCROOT)/LiDirt/Info.plist
       PRODUCT_BUNDLE_IDENTIFIER: com.lidirt.app
       TARGETED_DEVICE_FAMILY: "1,2"
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
