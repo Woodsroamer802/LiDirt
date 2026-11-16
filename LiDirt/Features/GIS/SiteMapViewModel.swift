@@ -162,6 +162,18 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         hasContourMapImage || (jobSite?.isValid == true) || rawContourSourceHeightmap != nil
     }
 
+    /// Image shown in the Contour map sheet (fused render preferred, else offline snapshot).
+    var contourMapViewerImage: UIImage? {
+        fusedMapImage ?? offlineImage
+    }
+
+    var contourMapViewerSubtitle: String {
+        if lidarHeightmap != nil {
+            return "Fused 3DEP + LiDAR contour map"
+        }
+        return "USGS 3DEP hillshade + contours — sharp at pad zoom"
+    }
+
     /// Open a viewer that shows only the finished contour / hillshade map (no Apple tiles).
     func openContourMapViewer() {
         if let fusedMapImage {

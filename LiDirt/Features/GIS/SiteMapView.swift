@@ -45,16 +45,57 @@ struct SiteMapView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            if viewModel.fusedMapOnly, let image = viewModel.fusedMapImage {
-                // Finished contour / hillshade only — avoids Apple tile pixelation at pad zoom.
-                ContourMapCanvas(image: image)
-                    .ignoresSafeArea(edges: .bottom)
-            } else {
-                SiteMapRepresentable(viewModel: viewModel)
-                    .ignoresSafeArea(edges: .bottom)
+        mapStack
+            .background(LiDirtColors.gunmetal.ignoresSafeArea())
+            .navigationTitle(viewModel.isEditingJobSiteCrop ? "Adjust Job Site" : "Job Site map")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { siteMapToolbar }
+            .interactiveDismissDisabled(viewModel.isEditingJobSiteCrop)
+            .sheet(isPresented: $showOptions) {
+                JobSiteOptionsSheet(
+                    viewModel: viewModel,
+                    intervalText: $intervalText,
+                    onApplyInterval: applyInterval
+                )
             }
+            .sheet(isPresented: $showPrintSheet) {
+                PrintMapSheet(viewModel: viewModel)
+            }
+            .sheet(isPresented: $viewModel.showOfflineViewer) {
+                offlineMapSheet
+            }
+            .sheet(isPresented: $viewModel.showContourMapViewer) {
+                contourMapSheet
+            }
+            .sheet(item: sharePDFBinding) { item in
+                ActivityView(activityItems: [item.url])
+            }
+            .alert("Print failed", isPresented: printErrorPresented) {
+                Button("OK", role: .cancel) { viewModel.printError = nil }
+            } message: {
+                Text(viewModel.printError ?? "")
+            }
+            .alert("Offline save", isPresented: offlineErrorPresented) {
+                Button("OK", role: .cancel) { viewModel.offlineError = nil }
+            } message: {
+                Text(viewModel.offlineError ?? "")
+            }
+            .onAppear {
+                viewModel.onAppear()
+                disclaimerMinimized = false
+                Task {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        disclaimerMinimized = true
+                    }
+                }
+            }
+            .onDisappear { viewModel.onDisappear() }
+    }
 
+    private var mapStack: some View {
+        ZStack(alignment: .top) {
+            mapBackground
             VStack(alignment: .leading, spacing: 8) {
                 if viewModel.isEditingJobSiteCrop {
                     cropEditChrome
@@ -68,135 +109,124 @@ struct SiteMapView: View {
             }
             .padding(12)
         }
-        .background(LiDirtColors.gunmetal.ignoresSafeArea())
-        .navigationTitle(viewModel.isEditingJobSiteCrop ? "Adjust Job Site" : "Job Site map")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if viewModel.isEditingJobSiteCrop {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { viewModel.finishJobSiteCropEdit(save: false) }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { viewModel.finishJobSiteCropEdit(save: true) }
-                        .fontWeight(.semibold)
-                }
-            } else {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Button {
-                            showOptions = true
-                        } label: {
-                            Label("Map options", systemImage: "slider.horizontal.3")
-                        }
-                        Button {
-                            viewModel.beginJobSiteCropEdit()
-                        } label: {
-                            Label("Adjust Job Site", systemImage: "crop.rotate")
-                        }
-                        Button {
-                            viewModel.openContourMapViewer()
-                        } label: {
-                            Label("Contour map", systemImage: "square.3.layers.3d.down.right")
-                        }
-                        .disabled(!viewModel.canOpenContourMap || viewModel.isBuildingFusedMap)
-                        Button {
-                            viewModel.setFusedMapOnly(!viewModel.fusedMapOnly)
-                        } label: {
-                            Label(
-                                viewModel.fusedMapOnly ? "Show street map" : "Fused map only",
-                                systemImage: viewModel.fusedMapOnly ? "map" : "map.fill"
-                            )
-                        }
-                        Button {
-                            showPrintSheet = true
-                        } label: {
-                            Label("Print", systemImage: "printer")
-                        }
-                        .disabled(!viewModel.canExportPrint)
-                        if viewModel.hasOfflinePackage {
-                            Button {
-                                viewModel.openOfflineJobSite()
-                            } label: {
-                                Label("Open offline map", systemImage: "arrow.down.circle")
-                            }
-                        }
+    }
+
+    @ViewBuilder
+    private var mapBackground: some View {
+        if viewModel.fusedMapOnly, let image = viewModel.fusedMapImage {
+            ContourMapCanvas(image: image)
+                .ignoresSafeArea(edges: .bottom)
+        } else {
+            SiteMapRepresentable(viewModel: viewModel)
+                .ignoresSafeArea(edges: .bottom)
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var siteMapToolbar: some ToolbarContent {
+        if viewModel.isEditingJobSiteCrop {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { viewModel.finishJobSiteCropEdit(save: false) }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { viewModel.finishJobSiteCropEdit(save: true) }
+                    .fontWeight(.semibold)
+            }
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                Menu {
+                    Button {
+                        showOptions = true
                     } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundStyle(LiDirtColors.constructionYellow)
+                        Label("Map options", systemImage: "slider.horizontal.3")
                     }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button {
+                        viewModel.beginJobSiteCropEdit()
+                    } label: {
+                        Label("Adjust Job Site", systemImage: "crop.rotate")
+                    }
+                    Button {
+                        viewModel.openContourMapViewer()
+                    } label: {
+                        Label("Contour map", systemImage: "square.3.layers.3d.down.right")
+                    }
+                    .disabled(!viewModel.canOpenContourMap || viewModel.isBuildingFusedMap)
+                    Button {
+                        viewModel.setFusedMapOnly(!viewModel.fusedMapOnly)
+                    } label: {
+                        Label(
+                            viewModel.fusedMapOnly ? "Show street map" : "Fused map only",
+                            systemImage: viewModel.fusedMapOnly ? "map" : "map.fill"
+                        )
+                    }
+                    Button {
+                        showPrintSheet = true
+                    } label: {
+                        Label("Print", systemImage: "printer")
+                    }
+                    .disabled(!viewModel.canExportPrint)
+                    if viewModel.hasOfflinePackage {
+                        Button {
+                            viewModel.openOfflineJobSite()
+                        } label: {
+                            Label("Open offline map", systemImage: "arrow.down.circle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(LiDirtColors.constructionYellow)
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { dismiss() }
+            }
         }
-        .interactiveDismissDisabled(viewModel.isEditingJobSiteCrop)
-        .sheet(isPresented: $showOptions) {
-            JobSiteOptionsSheet(
-                viewModel: viewModel,
-                intervalText: $intervalText,
-                onApplyInterval: applyInterval
+    }
+
+    @ViewBuilder
+    private var offlineMapSheet: some View {
+        if let image = viewModel.offlineImage {
+            OfflineJobSiteView(
+                projectName: viewModel.projectName,
+                image: image,
+                meta: viewModel.offlineMeta,
+                title: "Offline Job Site"
             )
         }
-        .sheet(isPresented: $showPrintSheet) {
-            PrintMapSheet(viewModel: viewModel)
+    }
+
+    @ViewBuilder
+    private var contourMapSheet: some View {
+        if let image = viewModel.contourMapViewerImage {
+            OfflineJobSiteView(
+                projectName: viewModel.projectName,
+                image: image,
+                meta: viewModel.offlineMeta,
+                title: "Contour map",
+                subtitle: viewModel.contourMapViewerSubtitle
+            )
         }
-        .sheet(isPresented: $viewModel.showOfflineViewer) {
-            if let image = viewModel.offlineImage {
-                OfflineJobSiteView(
-                    projectName: viewModel.projectName,
-                    image: image,
-                    meta: viewModel.offlineMeta,
-                    title: "Offline Job Site"
-                )
-            }
-        }
-        .sheet(isPresented: $viewModel.showContourMapViewer) {
-            if let image = viewModel.fusedMapImage ?? viewModel.offlineImage {
-                OfflineJobSiteView(
-                    projectName: viewModel.projectName,
-                    image: image,
-                    meta: viewModel.offlineMeta,
-                    title: "Contour map",
-                    subtitle: viewModel.lidarHeightmap == nil
-                        ? "USGS 3DEP hillshade + contours — sharp at pad zoom"
-                        : "Fused 3DEP + LiDAR contour map"
-                )
-            }
-        }
-        .sheet(item: Binding(
+    }
+
+    private var sharePDFBinding: Binding<IdentifiableURL?> {
+        Binding(
             get: { viewModel.sharePDFURL.map(IdentifiableURL.init) },
             set: { viewModel.sharePDFURL = $0?.url }
-        )) { item in
-            ActivityView(activityItems: [item.url])
-        }
-        .alert("Print failed", isPresented: Binding(
+        )
+    }
+
+    private var printErrorPresented: Binding<Bool> {
+        Binding(
             get: { viewModel.printError != nil },
             set: { if !$0 { viewModel.printError = nil } }
-        )) {
-            Button("OK", role: .cancel) { viewModel.printError = nil }
-        } message: {
-            Text(viewModel.printError ?? "")
-        }
-        .alert("Offline save", isPresented: Binding(
+        )
+    }
+
+    private var offlineErrorPresented: Binding<Bool> {
+        Binding(
             get: { viewModel.offlineError != nil },
             set: { if !$0 { viewModel.offlineError = nil } }
-        )) {
-            Button("OK", role: .cancel) { viewModel.offlineError = nil }
-        } message: {
-            Text(viewModel.offlineError ?? "")
-        }
-        .onAppear {
-            viewModel.onAppear()
-            disclaimerMinimized = false
-            Task {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    disclaimerMinimized = true
-                }
-            }
-        }
-        .onDisappear { viewModel.onDisappear() }
+        )
     }
 
     private var compactHeader: some View {
