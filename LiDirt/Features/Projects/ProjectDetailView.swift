@@ -50,6 +50,7 @@ struct ProjectDetailView: View {
                     contourIntervalInches: environment.preferredContourIntervalInches,
                     contourSurfaceMode: environment.contourSurfaceMode,
                     jobSite: project?.jobSite,
+                    initialAddress: project?.address,
                     onIntervalChange: { environment.savePreferredContourIntervalInches($0) },
                     onSurfaceModeChange: { environment.saveContourSurfaceMode($0) },
                     onJobSiteChange: { bounds in
@@ -170,12 +171,12 @@ struct ProjectDetailView: View {
                     Button {
                         openContourMap(for: project)
                     } label: {
-                        Label("Fused topo / LiDAR map", systemImage: "map")
+                        Label("Job Site map", systemImage: "map")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                    Text("Fused 3DEP + LiDAR map with Job Site zoom rectangle and offline high-res snapshot. Print ARCH D / half sheets.")
+                    Text("Job Site map with topo + LiDAR, address offline download, and print sheets.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
 

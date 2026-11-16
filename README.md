@@ -113,17 +113,16 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 - `Features/Projects` — local project list/detail
 - `LiDirtTests` — DEMBuilder, QualityScorer, MetadataCodec
 
-## Fused topo / LiDAR map + print
+## Job Site map + print
 
-From a project (**Fused topo / LiDAR map**) or scan review:
+From a project (**Job Site map**) or scan review:
 
-- **USGS topo** tiles for visual context
-- **USGS 3DEP** elevation as the foundation surface
-- **Phone LiDAR DEM** blended in for pad-scale detail (vertical bias matches 3DEP; GPS/compass place)
-- **Typed contour interval** (inches) on the map / review / Settings
-- **Ground detail toggle** — **As-scanned** (keep ruts/gravel texture) or **Smoothed ground** (ignore fine noise for equipment planning contours)
-- **Job Site** rectangle — set from current view / scan footprint / square; zoom for phone focus
-- **Offline Job Site** — high-res snapshot (map + contours) you can pan, pinch-zoom, and rotate without live tiles
+- Compact map UI — options live in a **dropdown / Map options** sheet
+- **USGS topo** + **3DEP** foundation with phone **LiDAR** detail
+- **Download topo for address** — geocode, frame Job Site, save offline snapshot (LiDAR contours layered when a scan is loaded)
+- **Job Site** rectangle, ground-detail toggle, typed contour interval
+- **Offline** high-res snapshot — pan / pinch / rotate on site
+- Disclaimer auto-minimizes after 5 seconds
 - **Print PDF** fitted to:
   - ARCH D — 24×36 in (landscape)
   - Half sheet — 11×17 in
