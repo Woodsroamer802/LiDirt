@@ -87,12 +87,11 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         self.elevationService = elevationService
         self.offlineStore = offlineStore
         if let jobSite, jobSite.isValid {
-            self.syncOutlineDimensions(from: jobSite)
+            // Assign stored properties directly — cannot call methods before super.init.
+            self.outlineWidthFeet = JobSiteDefaults.clampSideFeet(jobSite.sideFeetEW)
+            self.outlineLengthFeet = JobSiteDefaults.clampSideFeet(jobSite.sideFeetNS)
             self.linkSquareSides = abs(jobSite.sideFeetNS - jobSite.sideFeetEW) < 1.5
             self.lockViewToJobSite = true
-        }
-
-        if let jobSite, jobSite.isValid {
             region = jobSite.region
             didFitScanRegion = true
         } else if let lat = orientation.latitude, let lon = orientation.longitude {
