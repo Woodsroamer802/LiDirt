@@ -176,11 +176,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
     /// Open a viewer that shows only the finished contour / hillshade map (no Apple tiles).
     func openContourMapViewer() {
-        if let fusedMapImage {
-            showContourMapViewer = true
-            return
-        }
-        if let offlineImage {
+        // Prefer an already-rendered image (fused or offline snapshot).
+        if contourMapViewerImage != nil {
             showContourMapViewer = true
             return
         }
