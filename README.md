@@ -23,6 +23,7 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 2. If it still fails: delete local DerivedData for LiDirt (`~/Library/Developer/Xcode/DerivedData/LiDirt-*`) and try again.
 3. Still stuck: fresh clone of `main` (don’t reuse a half-merged local copy), then open `LiDirt.xcodeproj` only.
 4. Avoid GitHub’s “Open with Xcode” if it misbehaves — clone in Terminal / GitHub Desktop, then File → Open the `.xcodeproj`.
+5. If Xcode says it cannot find `LiDirt/Info.plist`, pull latest `main` (the plist lives at `LiDirt/Info.plist`) and Clean Build Folder.
 2. Select the **LiDirt** scheme and your physical Pro device (not Simulator for capture).
 3. Set your Development Team under Signing & Capabilities.
 4. Build & Run.

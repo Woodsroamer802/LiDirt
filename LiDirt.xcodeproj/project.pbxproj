@@ -236,7 +236,6 @@
 			isa = PBXGroup;
 			children = (
 				A428A6B935064C45B4E43B5D,
-				E53B0E417041484C8B3F7F4E,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -250,6 +249,7 @@
 				079B6CA9A8434E228B1238C3,
 				26873B193091417BA77F006C,
 				E64A323751244F51AB15F7FE,
+				E53B0E417041484C8B3F7F4E /* Info.plist */,
 			);
 			path = LiDirt;
 			sourceTree = "<group>";
@@ -500,7 +500,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = LiDirt/Resources/Info.plist;
+				INFOPLIST_FILE = LiDirt/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lidirt.app;
@@ -522,7 +522,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = LiDirt/Resources/Info.plist;
+				INFOPLIST_FILE = LiDirt/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lidirt.app;
