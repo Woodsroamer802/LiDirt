@@ -38,14 +38,21 @@ struct UploadStatusView: View {
                     Text("Accepted. Package stored for processing.")
                         .font(LiDirtTypography.body)
                         .foregroundStyle(LiDirtColors.coverageGood)
-                    Button("Done", action: onDone)
-                        .buttonStyle(LiDirtPrimaryButtonStyle())
+                }
+
+                if item.status == .localOnly {
+                    Text("Package is saved on this phone.")
+                        .font(LiDirtTypography.body)
+                        .foregroundStyle(LiDirtColors.textSecondary)
                 }
             } else {
                 Text("Preparing package…")
                     .foregroundStyle(LiDirtColors.textSecondary)
                 ProgressView()
                     .tint(LiDirtColors.constructionYellow)
+                Text("If this hangs, Close and try Upload again from review.")
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textMuted)
             }
 
             Text("Offline packages stay in Application Support/UploadsQueue until accepted.")
@@ -53,9 +60,19 @@ struct UploadStatusView: View {
                 .foregroundStyle(LiDirtColors.textMuted)
 
             Spacer()
+
+            Button(queue.items.first(where: { $0.id == scanId })?.status == .accepted ? "Done" : "Close", action: onDone)
+                .buttonStyle(LiDirtPrimaryButtonStyle())
         }
         .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close", action: onDone)
+            }
+        }
         .task {
             await queue.processAll()
         }

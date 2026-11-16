@@ -7,8 +7,8 @@ struct ProjectDetailView: View {
     @State private var showScan = false
     @State private var showUnsupported = false
     @State private var reviewPayload: ReviewPayload?
-    @State private var uploadScanId: UUID?
-    @State private var showUpload = false
+    @State private var uploadSheet: UploadSheetToken?
+    @State private var uploadErrorMessage: String?
     @State private var pendingDelete: ScanSummary?
     @State private var showDeleteConfirm = false
     @State private var showDeleteProjectConfirm = false
@@ -91,14 +91,24 @@ struct ProjectDetailView: View {
                 }
             )
         }
-        .sheet(isPresented: $showUpload) {
-            if let uploadScanId {
-                UploadStatusView(queue: environment.uploadQueue, scanId: uploadScanId) {
-                    showUpload = false
+        // Item-based sheet avoids the blank content SwiftUI can show with `if let` inside isPresented.
+        .sheet(item: $uploadSheet) { token in
+            NavigationStack {
+                UploadStatusView(queue: environment.uploadQueue, scanId: token.id) {
+                    uploadSheet = nil
                     reviewPayload = nil
                 }
-                .presentationDetents([.medium, .large])
             }
+            .presentationDetents([.medium, .large])
+            .preferredColorScheme(.dark)
+        }
+        .alert("Upload failed", isPresented: Binding(
+            get: { uploadErrorMessage != nil },
+            set: { if !$0 { uploadErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { uploadErrorMessage = nil }
+        } message: {
+            Text(uploadErrorMessage ?? "Could not write the scan package.")
         }
         .sheet(isPresented: $showUnsupported) {
             NavigationStack {
@@ -273,8 +283,7 @@ struct ProjectDetailView: View {
                 environment.projectStore.addScanSummary(summary)
             }
 
-            uploadScanId = payload.scanId
-            showUpload = true
+            uploadSheet = UploadSheetToken(id: payload.scanId)
             let scanId = payload.scanId
             Task {
                 await environment.uploadQueue.processAll()
@@ -285,10 +294,13 @@ struct ProjectDetailView: View {
                 }
             }
         } catch {
-            uploadScanId = payload.scanId
-            showUpload = true
+            uploadErrorMessage = error.localizedDescription
         }
     }
+}
+
+private struct UploadSheetToken: Identifiable {
+    let id: UUID
 }
 
 struct ReviewPayload: Identifiable, Hashable {

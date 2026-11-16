@@ -89,7 +89,7 @@ struct SiteMapView: View {
             Text(GISDisclaimer.trespass)
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textSecondary)
-            Text(GISDisclaimer.notOnX)
+            Text(GISDisclaimer.noNationwideParcels)
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
         }

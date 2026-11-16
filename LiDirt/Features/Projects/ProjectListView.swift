@@ -179,7 +179,7 @@ struct SettingsView: View {
                     Text(GISDisclaimer.dataLimits)
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
-                    Text(GISDisclaimer.notOnX)
+                    Text(GISDisclaimer.noNationwideParcels)
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 }
