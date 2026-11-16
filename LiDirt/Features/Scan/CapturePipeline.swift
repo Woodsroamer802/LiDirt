@@ -157,7 +157,17 @@ final class CapturePipeline: ObservableObject {
         isSampling = trackingAllowsSampling
     }
 
-    func finish() -> (HeightmapResult?, QualityMetrics, TimeInterval) {
+    /// Snapshot of cells + session stats for DEM build off the main actor.
+    struct FinishSnapshot: Sendable {
+        var cells: [DEMGridKey: DEMCellStats]
+        var cellSizeM: Double
+        var minSamplesPerCell: Int
+        var passCountForScore: Int
+        var durationSec: TimeInterval
+    }
+
+    /// Stop sampling and capture cell data. Heavy DEM build happens in `buildFinishedDEM`.
+    func prepareFinishSnapshot() -> FinishSnapshot {
         countdownTask?.cancel()
         countdownTask = nil
         if passPhase == .sampling || passPhase == .paused {
@@ -165,23 +175,48 @@ final class CapturePipeline: ObservableObject {
         }
         isSampling = false
         passPhase = .passEnded
+        trackingStateDescription = "Building DEM…"
         let duration = Date().timeIntervalSince(sessionStart ?? Date())
-        let cells = accumulator.snapshot()
-        let heightmap = DEMBuilder.buildHeightmap(
-            cells: cells,
+        return FinishSnapshot(
+            cells: accumulator.snapshot(),
             cellSizeM: cellSizeM,
-            minSamples: minSamplesPerCell,
+            minSamplesPerCell: minSamplesPerCell,
+            passCountForScore: max(completedPassCount, passCount > 0 ? 1 : 0),
+            durationSec: duration
+        )
+    }
+
+    /// CPU-heavy DEM + quality score — safe to run in `Task.detached`.
+    nonisolated static func buildFinishedDEM(
+        from snapshot: FinishSnapshot
+    ) -> (HeightmapResult?, QualityMetrics) {
+        let heightmap = DEMBuilder.buildHeightmap(
+            cells: snapshot.cells,
+            cellSizeM: snapshot.cellSizeM,
+            minSamples: snapshot.minSamplesPerCell,
             fillOneCellGaps: true
         )
-        lastPreview = heightmap
         let metrics = QualityScorer.score(
-            cells: cells,
+            cells: snapshot.cells,
             heightmap: heightmap,
-            passCount: max(completedPassCount, passCount > 0 ? 1 : 0),
-            minSamples: minSamplesPerCell
+            passCount: snapshot.passCountForScore,
+            minSamples: snapshot.minSamplesPerCell
         )
+        return (heightmap, metrics)
+    }
+
+    func applyFinishedDEM(heightmap: HeightmapResult?, metrics: QualityMetrics, cells: [DEMGridKey: DEMCellStats]) {
+        lastPreview = heightmap
         updateLiveMetrics(cells: cells, heightmap: heightmap, metrics: metrics)
-        return (heightmap, metrics, duration)
+        trackingStateDescription = "Scan finished"
+    }
+
+    /// Synchronous finish (tests / fallback). Prefer async path in the UI.
+    func finish() -> (HeightmapResult?, QualityMetrics, TimeInterval) {
+        let snapshot = prepareFinishSnapshot()
+        let (heightmap, metrics) = Self.buildFinishedDEM(from: snapshot)
+        applyFinishedDEM(heightmap: heightmap, metrics: metrics, cells: snapshot.cells)
+        return (heightmap, metrics, snapshot.durationSec)
     }
 
     func applyOrientation(_ snapshot: ScanOrientationSnapshot) {

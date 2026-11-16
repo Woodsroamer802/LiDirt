@@ -28,6 +28,10 @@ struct ScanReviewView: View {
     @State private var intervalText: String = ""
     @State private var activeIntervalInches: Double = ContourPreview.defaultIntervalInches
     @State private var surfaceMode: ContourSurfaceMode = .smoothedGround
+    @State private var previewImage: UIImage?
+    @State private var contourHeightmap: HeightmapResult?
+    @State private var isPreparingPreview = false
+    @State private var previewTask: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
@@ -50,6 +54,14 @@ struct ScanReviewView: View {
             activeIntervalInches = preferredContourIntervalInches
             intervalText = String(format: "%g", preferredContourIntervalInches)
             surfaceMode = preferredContourSurfaceMode
+            preparePreviewAsync()
+        }
+        .onDisappear {
+            previewTask?.cancel()
+        }
+        .onChange(of: surfaceMode) { _, mode in
+            onContourSurfaceModeChange?(mode)
+            preparePreviewAsync()
         }
         .sheet(isPresented: $showTopoMap) {
             NavigationStack {
@@ -150,9 +162,6 @@ struct ScanReviewView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: surfaceMode) { _, mode in
-                onContourSurfaceModeChange?(mode)
-            }
             Text(surfaceMode.shortHelp)
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
@@ -180,21 +189,31 @@ struct ScanReviewView: View {
             }
 
             ZStack {
-                if let heightmap, let cgImage = HeightmapPreviewImage.cgImage(from: heightmap) {
-                    Image(uiImage: UIImage(cgImage: cgImage))
+                if let heightmap, let previewImage {
+                    Image(uiImage: previewImage)
                         .resizable()
                         .interpolation(.none)
                         .aspectRatio(CGFloat(heightmap.width) / CGFloat(max(heightmap.height, 1)), contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                    if showContours {
+                    if showContours, let contourHeightmap {
                         ContourPreviewCanvas(
-                            heightmap: DEMGroundSmoother.prepareForContours(heightmap, mode: surfaceMode),
+                            heightmap: contourHeightmap,
                             intervalInches: activeIntervalInches
                         )
                         .aspectRatio(CGFloat(heightmap.width) / CGFloat(max(heightmap.height, 1)), contentMode: .fit)
                         .allowsHitTesting(false)
                     }
+                } else if heightmap != nil, isPreparingPreview {
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .tint(LiDirtColors.constructionYellow)
+                        Text("Preparing preview…")
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textMuted)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 160)
+                    .background(LiDirtColors.gunmetalElevated, in: RoundedRectangle(cornerRadius: 8))
                 } else {
                     Text("No DEM cells met the minimum sample count. Rescan the pad.")
                         .font(LiDirtTypography.body)
@@ -214,6 +233,10 @@ struct ScanReviewView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LiDirtSecondaryButtonStyle())
+
+                Text("Finished map: tap Open Job Site map above, or Job Site map on the project screen.")
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.constructionYellow)
             }
 
             Text("Type a contour interval (inches). Job Site map uses USGS 3DEP as foundation plus this LiDAR DEM. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
@@ -318,5 +341,30 @@ struct ScanReviewView: View {
     private func formatDuration(_ seconds: TimeInterval) -> String {
         let s = Int(seconds.rounded())
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    /// Heavy smoothing / preview image off the main actor so review doesn’t freeze.
+    private func preparePreviewAsync() {
+        guard let heightmap else {
+            previewImage = nil
+            contourHeightmap = nil
+            isPreparingPreview = false
+            return
+        }
+        let mode = surfaceMode
+        isPreparingPreview = previewImage == nil
+        previewTask?.cancel()
+        previewTask = Task(priority: .userInitiated) {
+            let (image, contoured) = await Task.detached(priority: .userInitiated) { () -> (UIImage?, HeightmapResult) in
+                let prepared = DEMGroundSmoother.prepareForContours(heightmap, mode: mode)
+                let cg = HeightmapPreviewImage.cgImage(from: heightmap)
+                let ui = cg.map { UIImage(cgImage: $0) }
+                return (ui, prepared)
+            }.value
+            if Task.isCancelled { return }
+            previewImage = image
+            contourHeightmap = contoured
+            isPreparingPreview = false
+        }
     }
 }

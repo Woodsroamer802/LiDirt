@@ -17,11 +17,14 @@ final class ScanSessionViewModel: ObservableObject {
     @Published var completedOrientation: ScanOrientationSnapshot = .unavailable
     @Published var durationSec: TimeInterval = 0
     @Published var didFinish = false
+    @Published var isFinalizing = false
+    @Published var finalizeMessage: String?
     @Published var suggestedPasses: Int = 3
     /// Latest AR camera transform from the AR view (device only); used for north calibrate.
     var latestCameraTransform: simd_float4x4?
 
     private var cancellables = Set<AnyCancellable>()
+    private var finalizeTask: Task<Void, Never>?
 
     init(projectId: UUID, cellSizeM: Double = 0.05) {
         self.projectId = projectId
@@ -52,6 +55,9 @@ final class ScanSessionViewModel: ObservableObject {
     }
 
     var phaseHint: String {
+        if isFinalizing {
+            return finalizeMessage ?? "Building DEM — keep the app open…"
+        }
         switch pipeline.passPhase {
         case .awaitingBegin:
             return "Hold still, then tap Begin pass when ready to walk."
@@ -72,6 +78,7 @@ final class ScanSessionViewModel: ObservableObject {
     }
 
     func onDisappear() {
+        finalizeTask?.cancel()
         orientationService.stop()
     }
 
@@ -105,16 +112,33 @@ final class ScanSessionViewModel: ObservableObject {
         pipeline.markControlPin(at: SIMD3<Float>(0, Float(pipeline.lastPreview?.bounds.minY ?? 0), 0))
     }
 
+    /// Finish without freezing the UI — DEM build runs off the main actor.
     func finish() {
+        guard !isFinalizing, !didFinish else { return }
+        isFinalizing = true
+        finalizeMessage = "Building DEM…"
         orientationService.calibrate(cameraTransform: latestCameraTransform)
         pipeline.applyOrientation(orientationService.snapshot)
-        let (heightmap, metrics, duration) = pipeline.finish()
-        completedHeightmap = heightmap
-        completedMetrics = metrics
-        completedOrientation = orientationService.snapshot
-        durationSec = duration
+        let snapshot = pipeline.prepareFinishSnapshot()
+        let orientation = orientationService.snapshot
         orientationService.stop()
-        didFinish = true
+
+        finalizeTask?.cancel()
+        finalizeTask = Task(priority: .userInitiated) {
+            finalizeMessage = "Building heightmap from LiDAR samples…"
+            let (heightmap, metrics) = await Task.detached(priority: .userInitiated) {
+                CapturePipeline.buildFinishedDEM(from: snapshot)
+            }.value
+            if Task.isCancelled { return }
+            pipeline.applyFinishedDEM(heightmap: heightmap, metrics: metrics, cells: snapshot.cells)
+            completedHeightmap = heightmap
+            completedMetrics = metrics
+            completedOrientation = orientation
+            durationSec = snapshot.durationSec
+            finalizeMessage = nil
+            isFinalizing = false
+            didFinish = true
+        }
     }
 
     func handleBackground() {
