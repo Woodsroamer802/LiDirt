@@ -291,6 +291,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 43DD6F71B2B643298D3503EE /* Build configuration list for PBXNativeTarget "LiDirt" */;
 			buildPhases = (
+				F1A2B3C4D5E64789A0B1C2D3 /* Verify Info.plist */,
 				3830694538144F0DB221DDD3 /* Sources */,
 				218D8BC3B26E43B38755D3D6 /* Frameworks */,
 				4075CA56CF674DBE932530DA /* Resources */,
@@ -369,6 +370,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F1A2B3C4D5E64789A0B1C2D3 /* Verify Info.plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Verify Info.plist";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "PLIST=\"${SRCROOT}/LiDirt/Info.plist\"\nif [ ! -f \"$PLIST\" ]; then\n  echo \"error: Missing $PLIST\"\n  echo \"error: Your LiDirt folder is outdated (common with an old Downloads copy).\"\n  echo \"error: Delete ~/Downloads/LiDirt, clone or re-download latest main from GitHub, then open LiDirt.xcodeproj.\"\n  exit 1\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		3830694538144F0DB221DDD3 /* Sources */ = {
@@ -500,7 +523,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = LiDirt/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/LiDirt/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lidirt.app;
@@ -522,7 +545,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = LiDirt/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/LiDirt/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lidirt.app;
