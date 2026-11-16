@@ -91,6 +91,88 @@ struct USGSElevationService: Sendable {
         )
     }
 
+    /// Sample 3DEP over a Job Site AABB (no LiDAR required) for pad-scale contour maps.
+    func fetchFoundationDEM(
+        covering bounds: JobSiteBounds,
+        cellSizeM: Double? = nil,
+        paddingM: Double = 6.0
+    ) async throws -> (heightmap: HeightmapResult, origin: CLLocationCoordinate2D) {
+        guard bounds.isValid else { throw USGSElevationServiceError.empty }
+        let origin = bounds.center
+        let corners = [
+            CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.west),
+            CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east),
+            CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west),
+            CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.east)
+        ]
+        let locals = corners.map { ContourMapGeoref.localMeters(coordinate: $0, origin: origin) }
+        guard let minX0 = locals.map(\.x).min(),
+              let maxX0 = locals.map(\.x).max(),
+              let minZ0 = locals.map(\.z).min(),
+              let maxZ0 = locals.map(\.z).max() else {
+            throw USGSElevationServiceError.empty
+        }
+        let sideM = max(maxX0 - minX0, maxZ0 - minZ0, 1)
+        let resolvedCell = cellSizeM ?? min(2.0, max(0.5, sideM / 48))
+        let minX = minX0 - paddingM
+        let maxX = maxX0 + paddingM
+        let minZ = minZ0 - paddingM
+        let maxZ = maxZ0 + paddingM
+        let width = max(2, Int(ceil((maxX - minX) / resolvedCell)))
+        let height = max(2, Int(ceil((maxZ - minZ) / resolvedCell)))
+
+        var points: [(col: Int, row: Int, coord: CLLocationCoordinate2D)] = []
+        points.reserveCapacity(width * height)
+        for row in 0..<height {
+            for col in 0..<width {
+                let x = minX + (Double(col) + 0.5) * resolvedCell
+                let z = minZ + (Double(row) + 0.5) * resolvedCell
+                let coord = ContourMapGeoref.coordinate(
+                    localXMetersEast: x,
+                    localZMetersNorth: z,
+                    origin: origin
+                )
+                points.append((col, row, coord))
+            }
+        }
+
+        let samples = try await fetchElevations(points.map(\.coord))
+        guard samples.count == points.count else { throw USGSElevationServiceError.empty }
+
+        var elevations = [Float](repeating: .nan, count: width * height)
+        var minY = Double.greatestFiniteMagnitude
+        var maxY = -Double.greatestFiniteMagnitude
+        var valid = 0
+        for (i, point) in points.enumerated() {
+            guard let value = samples[i] else { continue }
+            elevations[point.row * width + point.col] = Float(value)
+            minY = min(minY, value)
+            maxY = max(maxY, value)
+            valid += 1
+        }
+        guard valid > 0 else { throw USGSElevationServiceError.empty }
+
+        let heightmap = HeightmapResult(
+            elevations: elevations,
+            width: width,
+            height: height,
+            cellSizeM: resolvedCell,
+            originX: minX,
+            originZ: minZ,
+            sampleCounts: [Int](repeating: 1, count: width * height),
+            filledFlags: [Bool](repeating: false, count: width * height),
+            bounds: HeightmapBounds(
+                minX: minX,
+                maxX: minX + Double(width) * resolvedCell,
+                minZ: minZ,
+                maxZ: minZ + Double(height) * resolvedCell,
+                minY: minY,
+                maxY: maxY
+            )
+        )
+        return (heightmap, origin)
+    }
+
     func fetchElevations(_ coordinates: [CLLocationCoordinate2D]) async throws -> [Double?] {
         guard !coordinates.isEmpty else { return [] }
         var out = [Double?](repeating: nil, count: coordinates.count)

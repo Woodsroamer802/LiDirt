@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// Offline Job Site viewer: high-res snapshot with pinch-zoom, pan, and rotate.
+/// High-res Job Site / contour map viewer: pinch-zoom, pan, and rotate (no Apple map tiles).
 struct OfflineJobSiteView: View {
     let projectName: String
     let image: UIImage
-    let meta: JobSiteOfflineMeta?
+    var meta: JobSiteOfflineMeta? = nil
+    var title: String = "Offline Job Site"
+    var subtitle: String? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var scale: CGFloat = 1
@@ -39,7 +41,7 @@ struct OfflineJobSiteView: View {
                         .background(LiDirtColors.gunmetalDeep.opacity(0.92))
                 }
             }
-            .navigationTitle("Offline Job Site")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -55,6 +57,9 @@ struct OfflineJobSiteView: View {
 
     private var helpText: String {
         var parts = ["Pinch to zoom · drag to pan · twist to orient"]
+        if let subtitle, !subtitle.isEmpty {
+            parts.append(subtitle)
+        }
         if let meta {
             parts.append("Saved \(meta.savedAt.formatted(date: .abbreviated, time: .shortened))")
             parts.append("\(meta.imageWidthPx)×\(meta.imageHeightPx)px")
