@@ -230,11 +230,23 @@ struct ScanSessionView: View {
 
             passControls
 
-            HStack(spacing: 10) {
-                Button("Mark pin") { viewModel.markPin() }
-                    .buttonStyle(LiDirtSecondaryButtonStyle())
-                Button("Finish scan") { viewModel.finish() }
-                    .buttonStyle(LiDirtPrimaryButtonStyle())
+            if viewModel.isFinalizing {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(LiDirtColors.constructionYellow)
+                    Text(viewModel.finalizeMessage ?? "Building DEM…")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.constructionYellow)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            } else {
+                HStack(spacing: 10) {
+                    Button("Mark pin") { viewModel.markPin() }
+                        .buttonStyle(LiDirtSecondaryButtonStyle())
+                    Button("Finish scan") { viewModel.finish() }
+                        .buttonStyle(LiDirtPrimaryButtonStyle())
+                }
             }
         }
         .padding(16)
@@ -245,6 +257,7 @@ struct ScanSessionView: View {
                 endPoint: .bottom
             )
         )
+        .disabled(viewModel.isFinalizing)
     }
 
     @ViewBuilder

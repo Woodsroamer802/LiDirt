@@ -15,6 +15,8 @@ struct ProjectDetailView: View {
     @State private var showSiteMap = false
     @State private var siteMapHeightmap: HeightmapResult?
     @State private var siteMapOrientation: ScanOrientationSnapshot = .unavailable
+    @State private var isSavingPackage = false
+    @State private var packageHint: String?
     @Environment(\.dismiss) private var dismiss
 
     private var project: Project? {
@@ -85,6 +87,18 @@ struct ProjectDetailView: View {
                     controlPins: pins,
                     orientation: orientation
                 )
+                // Persist package in background so past scans can be reopened / uploaded later.
+                if let heightmap {
+                    persistPackageAfterFinish(
+                        scanId: scanId,
+                        projectId: projectId,
+                        heightmap: heightmap,
+                        metrics: metrics,
+                        durationSec: duration,
+                        controlPins: pins,
+                        orientation: orientation
+                    )
+                }
             }
         }
         .navigationDestination(item: $reviewPayload) { payload in
@@ -176,9 +190,15 @@ struct ProjectDetailView: View {
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                    Text("Job Site map with topo + LiDAR, address offline download, and print sheets.")
+                    Text("Finished map: tap Job Site map above (uses latest saved scan). After Finish, also use Open Job Site map on Scan review.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
+
+                    if isSavingPackage, let packageHint {
+                        Text(packageHint)
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.constructionYellow)
+                    }
 
                     Button {
                         startScanOrBlock()
@@ -200,19 +220,30 @@ struct ProjectDetailView: View {
                         .listRowBackground(LiDirtColors.gunmetalElevated)
                 }
                 ForEach(project.scanSummaries) { scan in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(scan.capturedAt.formatted(date: .abbreviated, time: .shortened))
-                            .foregroundStyle(LiDirtColors.textPrimary)
-                        HStack {
-                            if let score = scan.qualityScore {
-                                Text("Score \(score)")
+                    Button {
+                        openScan(scan)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(scan.capturedAt.formatted(date: .abbreviated, time: .shortened))
+                                .foregroundStyle(LiDirtColors.textPrimary)
+                            HStack {
+                                if let score = scan.qualityScore {
+                                    Text("Score \(score)")
+                                }
+                                Text(scan.uploadStatus.rawValue)
+                                Text("\(scan.passCount) passes")
                             }
-                            Text(scan.uploadStatus.rawValue)
-                            Text("\(scan.passCount) passes")
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textMuted)
+                            Text(scan.localPackagePath == nil
+                                 ? "Tap to open (needs saved package)"
+                                 : "Tap to review / upload · Open Job Site map from review")
+                                .font(LiDirtTypography.caption)
+                                .foregroundStyle(LiDirtColors.constructionYellow)
                         }
-                        .font(LiDirtTypography.caption)
-                        .foregroundStyle(LiDirtColors.textMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(.plain)
                     .listRowBackground(LiDirtColors.gunmetalElevated)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button("Delete", role: .destructive) {
@@ -288,6 +319,101 @@ struct ProjectDetailView: View {
         dismiss()
     }
 
+    private func openScan(_ scan: ScanSummary) {
+        // Prefer live review payload if it's the same scan (already on that screen).
+        if let review = reviewPayload, review.scanId == scan.id {
+            return
+        }
+        let dir: URL
+        if let path = scan.localPackagePath {
+            dir = URL(fileURLWithPath: path)
+        } else {
+            dir = environment.localScanStore.packageURL(for: scan.id)
+        }
+        guard let loaded = try? ScanPackageReader.load(from: dir) else {
+            uploadErrorMessage = "No saved package for this scan yet. After Finish, wait for “Scan package saved”, then tap again — or use Upload on the review screen right after Finish."
+            return
+        }
+        let q = loaded.metadata.quality
+        let metrics = QualityMetrics(
+            coverageRatio: q.coverageRatio,
+            meanSampleCount: q.meanSampleCount,
+            rmsResidualM: q.rmsResidualM,
+            holeRatio: q.holeRatio,
+            passCount: loaded.metadata.capture.passCount,
+            qualityScore: q.qualityScore
+        )
+        reviewPayload = ReviewPayload(
+            scanId: scan.id,
+            projectId: scan.projectId,
+            heightmap: loaded.heightmap,
+            metrics: metrics,
+            durationSec: loaded.metadata.capture.durationSec,
+            controlPins: [],
+            orientation: loaded.orientation
+        )
+    }
+
+    /// Write local package after Finish so the scan list can reopen / upload later.
+    private func persistPackageAfterFinish(
+        scanId: UUID,
+        projectId: UUID,
+        heightmap: HeightmapResult,
+        metrics: QualityMetrics,
+        durationSec: TimeInterval,
+        controlPins: [ControlPin],
+        orientation: ScanOrientationSnapshot
+    ) {
+        isSavingPackage = true
+        packageHint = "Saving scan package in background…"
+        let interval = environment.preferredContourIntervalInches
+        let dir = environment.localScanStore.packageURL(for: scanId)
+        Task(priority: .utility) {
+            do {
+                let metadata = ScanPackageWriter.makeMetadata(
+                    scanId: scanId,
+                    projectId: projectId,
+                    heightmap: heightmap,
+                    metrics: metrics,
+                    durationSec: durationSec,
+                    minSamplesPerCell: DEMBuilder.defaultMinSamplesPerCell,
+                    preferredContourIntervalInches: interval,
+                    controlPointsCount: controlPins.count,
+                    hasLiDAR: DeviceCapability.supportsLiDARSceneReconstruction,
+                    orientation: orientation
+                )
+                let package = try await Task.detached(priority: .utility) {
+                    try ScanPackageWriter.writePackage(
+                        to: dir,
+                        metadata: metadata,
+                        heightmap: heightmap
+                    )
+                }.value
+                var summary = ScanSummary(
+                    id: scanId,
+                    projectId: projectId,
+                    qualityScore: metrics.qualityScore,
+                    coverageRatio: metrics.coverageRatio,
+                    passCount: metrics.passCount,
+                    uploadStatus: .localOnly,
+                    localPackagePath: package.directory.path
+                )
+                if let existing = environment.projectStore.project(id: projectId)?
+                    .scanSummaries.first(where: { $0.id == scanId }) {
+                    summary.uploadStatus = existing.uploadStatus
+                    summary.capturedAt = existing.capturedAt
+                }
+                environment.projectStore.updateScanSummary(summary)
+                isSavingPackage = false
+                packageHint = "Scan package saved — tap the scan to review / upload anytime."
+            } catch {
+                isSavingPackage = false
+                packageHint = nil
+                uploadErrorMessage = "Could not save scan package: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private func beginUpload(_ payload: ReviewPayload, force: Bool) {
         guard let heightmap = payload.heightmap else { return }
         _ = force
@@ -306,45 +432,53 @@ struct ProjectDetailView: View {
         )
 
         let dir = environment.localScanStore.packageURL(for: payload.scanId)
-        do {
-            let package = try ScanPackageWriter.writePackage(
-                to: dir,
-                metadata: metadata,
-                heightmap: heightmap
-            )
-            environment.uploadQueue.enqueue(
-                scanId: payload.scanId,
-                projectId: payload.projectId,
-                packageDirectory: package.directory
-            )
+        isSavingPackage = true
+        packageHint = "Preparing upload package…"
+        Task {
+            do {
+                let package = try await Task.detached(priority: .userInitiated) {
+                    try ScanPackageWriter.writePackage(
+                        to: dir,
+                        metadata: metadata,
+                        heightmap: heightmap
+                    )
+                }.value
+                environment.uploadQueue.enqueue(
+                    scanId: payload.scanId,
+                    projectId: payload.projectId,
+                    packageDirectory: package.directory
+                )
 
-            let summary = ScanSummary(
-                id: payload.scanId,
-                projectId: payload.projectId,
-                qualityScore: payload.metrics.qualityScore,
-                coverageRatio: payload.metrics.coverageRatio,
-                passCount: payload.metrics.passCount,
-                uploadStatus: .queued,
-                localPackagePath: package.directory.path
-            )
-            if environment.projectStore.project(id: payload.projectId)?.scanSummaries.contains(where: { $0.id == payload.scanId }) == true {
-                environment.projectStore.updateScanSummary(summary)
-            } else {
-                environment.projectStore.addScanSummary(summary)
-            }
+                let summary = ScanSummary(
+                    id: payload.scanId,
+                    projectId: payload.projectId,
+                    qualityScore: payload.metrics.qualityScore,
+                    coverageRatio: payload.metrics.coverageRatio,
+                    passCount: payload.metrics.passCount,
+                    uploadStatus: .queued,
+                    localPackagePath: package.directory.path
+                )
+                if environment.projectStore.project(id: payload.projectId)?.scanSummaries.contains(where: { $0.id == payload.scanId }) == true {
+                    environment.projectStore.updateScanSummary(summary)
+                } else {
+                    environment.projectStore.addScanSummary(summary)
+                }
 
-            uploadSheet = UploadSheetToken(id: payload.scanId)
-            let scanId = payload.scanId
-            Task {
+                isSavingPackage = false
+                packageHint = nil
+                uploadSheet = UploadSheetToken(id: payload.scanId)
+                let scanId = payload.scanId
                 await environment.uploadQueue.processAll()
                 if let accepted = environment.uploadQueue.items.first(where: { $0.id == scanId }) {
                     var updated = summary
                     updated.uploadStatus = accepted.status
                     environment.projectStore.updateScanSummary(updated)
                 }
+            } catch {
+                isSavingPackage = false
+                packageHint = nil
+                uploadErrorMessage = error.localizedDescription
             }
-        } catch {
-            uploadErrorMessage = error.localizedDescription
         }
     }
 }
