@@ -11,6 +11,7 @@ final class ScanSessionViewModel: ObservableObject {
 
     @Published var showCameraDenied = false
     @Published var showFinishConfirm = false
+    @Published var showOrientationDetails = false
     @Published var completedHeightmap: HeightmapResult?
     @Published var completedMetrics: QualityMetrics?
     @Published var completedOrientation: ScanOrientationSnapshot = .unavailable
@@ -20,11 +21,23 @@ final class ScanSessionViewModel: ObservableObject {
     /// Latest AR camera transform from the AR view (device only); used for north calibrate.
     var latestCameraTransform: simd_float4x4?
 
+    private var cancellables = Set<AnyCancellable>()
+
     init(projectId: UUID, cellSizeM: Double = 0.05) {
         self.projectId = projectId
         self.scanId = UUID()
         self.pipeline = CapturePipeline(cellSizeM: cellSizeM)
         self.orientationService = ScanOrientationService()
+
+        // Nested ObservableObjects do not refresh SwiftUI by themselves.
+        pipeline.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        orientationService.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     var passLabel: String {
@@ -32,6 +45,7 @@ final class ScanSessionViewModel: ObservableObject {
         return "Pass \(current) of \(suggestedPasses)"
     }
 
+    /// Area of cells that already hit the green sample goal (≥8).
     var areaLabel: String {
         let yd2 = pipeline.trackedAreaM2 * 1.19599
         return String(format: "%.1f m² · %.1f yd²", pipeline.trackedAreaM2, yd2)
@@ -44,7 +58,7 @@ final class ScanSessionViewModel: ObservableObject {
         case .countdown(let n):
             return "Starting in \(n)…"
         case .sampling:
-            return "Walk the pad. Green = coverage goal met."
+            return "Walk the pad. Green = ≥\(CoverageGoals.samplesForGoalMet) samples/cell. Revisit amber."
         case .paused:
             return "Paused — Resume to keep collecting this pass."
         case .passEnded:

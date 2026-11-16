@@ -8,6 +8,8 @@ final class AppEnvironment: ObservableObject {
     @Published var preferredContourIntervalInches: Double
     /// County / government ArcGIS FeatureServer layer URL or GeoJSON endpoint for parcel lines.
     @Published var parcelSourceURL: String
+    /// When false (default), scan HUD hides the GPS/orientation box; open it from the location button or Settings.
+    @Published var showScanGPSBanner: Bool
 
     let projectStore: ProjectStore
     let authService: AuthService
@@ -16,6 +18,7 @@ final class AppEnvironment: ObservableObject {
     let tokenBox: TokenBox
 
     private let defaults: UserDefaults
+    private static let showScanGPSBannerKey = "showScanGPSBanner"
 
     init(
         apiBaseURL: URL = URL(string: "https://api.lidirt.example/v1")!,
@@ -23,6 +26,7 @@ final class AppEnvironment: ObservableObject {
         preferredUnits: UnitsPreference = .usCustomary,
         preferredContourIntervalInches: Double = 0.125,
         parcelSourceURL: String? = nil,
+        showScanGPSBanner: Bool? = nil,
         defaults: UserDefaults = .standard
     ) {
         self.defaults = defaults
@@ -33,6 +37,13 @@ final class AppEnvironment: ObservableObject {
         self.parcelSourceURL = parcelSourceURL
             ?? defaults.string(forKey: "parcelSourceURL")
             ?? ""
+        if let showScanGPSBanner {
+            self.showScanGPSBanner = showScanGPSBanner
+        } else if defaults.object(forKey: Self.showScanGPSBannerKey) != nil {
+            self.showScanGPSBanner = defaults.bool(forKey: Self.showScanGPSBannerKey)
+        } else {
+            self.showScanGPSBanner = false
+        }
 
         let paths = FilePaths.shared
         let tokenBox = TokenBox(authToken)
@@ -47,6 +58,11 @@ final class AppEnvironment: ObservableObject {
     func saveParcelSourceURL(_ url: String) {
         parcelSourceURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
         defaults.set(parcelSourceURL, forKey: "parcelSourceURL")
+    }
+
+    func saveShowScanGPSBanner(_ show: Bool) {
+        showScanGPSBanner = show
+        defaults.set(show, forKey: Self.showScanGPSBannerKey)
     }
 
     func applyAuthToken(_ token: String?) {
