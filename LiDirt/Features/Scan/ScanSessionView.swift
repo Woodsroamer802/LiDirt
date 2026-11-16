@@ -129,13 +129,58 @@ struct ScanSessionView: View {
                     : LiDirtColors.coverageThin
                 )
 
-            Text(viewModel.orientationService.statusMessage)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
+            gpsOrientationBanner
 
             CoverageLegendView()
         }
         .padding(16)
+    }
+
+    private var gpsOrientationBanner: some View {
+        let snap = viewModel.orientationService.snapshot
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: snap.frameAlignedToNorth ? "location.north.line.fill" : "location")
+                    .foregroundStyle(
+                        snap.frameAlignedToNorth
+                        ? LiDirtColors.coverageGood
+                        : LiDirtColors.constructionYellow
+                    )
+                Text(viewModel.orientationService.statusMessage)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textSecondary)
+                Spacer(minLength: 0)
+                if snap.frameAlignedToNorth {
+                    Text("N↑")
+                        .font(LiDirtTypography.mono)
+                        .foregroundStyle(LiDirtColors.constructionYellow)
+                }
+            }
+            if let lat = snap.latitude, let lon = snap.longitude {
+                Text(String(
+                    format: "GPS %.5f, %.5f (±%.0f m)",
+                    lat,
+                    lon,
+                    snap.horizontalAccuracyM ?? -1
+                ))
+                .font(LiDirtTypography.mono)
+                .foregroundStyle(LiDirtColors.textMuted)
+            }
+            if let heading = snap.headingDegrees {
+                Text(String(
+                    format: "Heading %.0f° (%@)",
+                    heading,
+                    snap.headingSource
+                ))
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+            }
+            Text("Phone GPS/compass — approximate, not survey-grade.")
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+        }
+        .padding(10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var bottomHUD: some View {
@@ -198,10 +243,18 @@ struct ScanSessionView: View {
 
     private func countdownOverlay(_ n: Int) -> some View {
         Text("\(n)")
-            .font(.system(size: 96, weight: .bold, design: .rounded))
-            .foregroundStyle(LiDirtColors.constructionYellow)
-            .padding(28)
-            .background(.ultraThinMaterial, in: Circle())
+            .font(.system(size: 120, weight: .black, design: .monospaced))
+            .monospacedDigit()
+            .foregroundStyle(.black)
+            .frame(minWidth: 148, minHeight: 148)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(LiDirtColors.constructionYellow)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(.black, lineWidth: 4)
+            )
             .padding(.bottom, 24)
             .accessibilityLabel("Starting in \(n)")
     }

@@ -6,6 +6,8 @@ struct ProjectListView: View {
     @State private var newName = ""
     @State private var newAddress = ""
     @State private var showSettings = false
+    @State private var pendingDeleteProject: Project?
+    @State private var showDeleteProjectConfirm = false
 
     var body: some View {
         List {
@@ -32,6 +34,12 @@ struct ProjectListView: View {
                         }
                     }
                     .listRowBackground(LiDirtColors.gunmetalElevated)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button("Delete", role: .destructive) {
+                            pendingDeleteProject = project
+                            showDeleteProjectConfirm = true
+                        }
+                    }
                 }
             }
         }
@@ -66,8 +74,27 @@ struct ProjectListView: View {
             SettingsView()
                 .environmentObject(environment)
         }
+        .alert("Delete this project?", isPresented: $showDeleteProjectConfirm) {
+            Button("Cancel", role: .cancel) { pendingDeleteProject = nil }
+            Button("Delete", role: .destructive) {
+                if let pendingDeleteProject {
+                    deleteProject(pendingDeleteProject)
+                }
+                pendingDeleteProject = nil
+            }
+        } message: {
+            Text("Removes the project and all of its local scans. This cannot be undone.")
+        }
         .task {
             await environment.uploadQueue.processAll()
+        }
+    }
+
+    private func deleteProject(_ project: Project) {
+        guard let removed = environment.projectStore.deleteProject(id: project.id) else { return }
+        for scan in removed.scanSummaries {
+            environment.localScanStore.deletePackage(scanId: scan.id)
+            environment.uploadQueue.remove(scan.id)
         }
     }
 

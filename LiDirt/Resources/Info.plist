@@ -28,6 +28,11 @@
 	<string>LiDirt uses GPS and compass heading to roughly orient the scan toward true north. Phone location is approximate and not survey-grade.</string>
 	<key>NSLocationUsageDescription</key>
 	<string>LiDirt uses GPS and compass heading to roughly orient the scan toward true north. Phone location is approximate and not survey-grade.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>FullAccuracyPurpose</key>
+		<string>LiDirt needs full GPS accuracy briefly to place and orient the site map. Still approximate — not a certified survey.</string>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
