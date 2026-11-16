@@ -50,45 +50,67 @@ struct SiteMapView: View {
                 .ignoresSafeArea(edges: .bottom)
 
             VStack(alignment: .leading, spacing: 8) {
-                compactHeader
+                if viewModel.isEditingJobSiteCrop {
+                    cropEditChrome
+                } else {
+                    compactHeader
+                }
                 Spacer()
-                footer
+                if !viewModel.isEditingJobSiteCrop {
+                    footer
+                }
             }
             .padding(12)
         }
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
-        .navigationTitle("Job Site map")
+        .navigationTitle(viewModel.isEditingJobSiteCrop ? "Adjust Job Site" : "Job Site map")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Menu {
-                    Button {
-                        showOptions = true
-                    } label: {
-                        Label("Map options", systemImage: "slider.horizontal.3")
-                    }
-                    Button {
-                        showPrintSheet = true
-                    } label: {
-                        Label("Print", systemImage: "printer")
-                    }
-                    .disabled(!viewModel.canExportPrint)
-                    if viewModel.hasOfflinePackage {
+            if viewModel.isEditingJobSiteCrop {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { viewModel.finishJobSiteCropEdit(save: false) }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { viewModel.finishJobSiteCropEdit(save: true) }
+                        .fontWeight(.semibold)
+                }
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
                         Button {
-                            viewModel.openOfflineJobSite()
+                            showOptions = true
                         } label: {
-                            Label("Open offline map", systemImage: "arrow.down.circle")
+                            Label("Map options", systemImage: "slider.horizontal.3")
                         }
+                        Button {
+                            viewModel.beginJobSiteCropEdit()
+                        } label: {
+                            Label("Adjust Job Site", systemImage: "crop.rotate")
+                        }
+                        Button {
+                            showPrintSheet = true
+                        } label: {
+                            Label("Print", systemImage: "printer")
+                        }
+                        .disabled(!viewModel.canExportPrint)
+                        if viewModel.hasOfflinePackage {
+                            Button {
+                                viewModel.openOfflineJobSite()
+                            } label: {
+                                Label("Open offline map", systemImage: "arrow.down.circle")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundStyle(LiDirtColors.constructionYellow)
                     }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(LiDirtColors.constructionYellow)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Done") { dismiss() }
-            }
         }
+        .interactiveDismissDisabled(viewModel.isEditingJobSiteCrop)
         .sheet(isPresented: $showOptions) {
             JobSiteOptionsSheet(
                 viewModel: viewModel,
@@ -157,6 +179,15 @@ struct SiteMapView: View {
                 }
 
                 Button {
+                    viewModel.beginJobSiteCropEdit()
+                } label: {
+                    Image(systemName: "crop.rotate")
+                        .font(.title3)
+                        .foregroundStyle(LiDirtColors.constructionYellow)
+                }
+                .accessibilityLabel("Adjust Job Site")
+
+                Button {
                     showOptions = true
                 } label: {
                     Image(systemName: "chevron.down.circle.fill")
@@ -183,6 +214,28 @@ struct SiteMapView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 8))
             }
+        }
+    }
+
+    private var cropEditChrome: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 10) {
+                Text(viewModel.statusMessage)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Cancel") { viewModel.finishJobSiteCropEdit(save: false) }
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textSecondary)
+                Button("Done") { viewModel.finishJobSiteCropEdit(save: true) }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(LiDirtColors.gunmetalDeep)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(LiDirtColors.constructionYellow, in: Capsule())
+            }
+            .padding(10)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
         }
     }
 
@@ -266,15 +319,21 @@ private struct JobSiteOptionsSheet: View {
                 }
 
                 Section {
-                    Text("Outline the scan area first. Set width × length (rectangle), move it, then download / scan.")
+                    Text("Drag, pinch, and twist the yellow frame on the map — like cropping a photo. Sliders below are optional fine-tuning.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
+                    Button {
+                        dismiss()
+                        viewModel.beginJobSiteCropEdit()
+                    } label: {
+                        Label("Adjust on map", systemImage: "crop.rotate")
+                    }
                     Toggle("Square (link sides)", isOn: Binding(
                         get: { viewModel.linkSquareSides },
                         set: { viewModel.setLinkSquareSides($0) }
                     ))
                     HStack {
-                        Text("Width E–W")
+                        Text("Width")
                         Slider(
                             value: Binding(
                                 get: { viewModel.outlineWidthFeet },
@@ -289,7 +348,7 @@ private struct JobSiteOptionsSheet: View {
                             .frame(width: 56, alignment: .trailing)
                     }
                     HStack {
-                        Text("Length N–S")
+                        Text("Length")
                         Slider(
                             value: Binding(
                                 get: { viewModel.outlineLengthFeet },
@@ -306,7 +365,8 @@ private struct JobSiteOptionsSheet: View {
                     }
                     Text(Self.areaHelp(
                         widthFeet: viewModel.outlineWidthFeet,
-                        lengthFeet: viewModel.outlineLengthFeet
+                        lengthFeet: viewModel.outlineLengthFeet,
+                        rotationDegrees: viewModel.jobSite?.rotationDegrees ?? 0
                     ))
                     .font(LiDirtTypography.caption)
                     .foregroundStyle(LiDirtColors.textMuted)
@@ -314,32 +374,9 @@ private struct JobSiteOptionsSheet: View {
                     Button("Place outline at map center") {
                         viewModel.placeOutlineAtMapCenter()
                     }
-                    Button("Move outline to map center") {
-                        viewModel.moveJobSiteToMapCenter()
-                    }
-                    .disabled(viewModel.jobSite == nil)
                     Button("Move outline to GPS") {
                         viewModel.moveJobSiteToGPS()
                     }
-
-                    Text("Nudge border")
-                        .font(LiDirtTypography.caption)
-                        .foregroundStyle(LiDirtColors.textMuted)
-                    HStack(spacing: 8) {
-                        Button("← W") {
-                            viewModel.nudgeJobSite(eastFeet: -JobSiteDefaults.nudgeFeet, northFeet: 0)
-                        }
-                        Button("N ↑") {
-                            viewModel.nudgeJobSite(eastFeet: 0, northFeet: JobSiteDefaults.nudgeFeet)
-                        }
-                        Button("S ↓") {
-                            viewModel.nudgeJobSite(eastFeet: 0, northFeet: -JobSiteDefaults.nudgeFeet)
-                        }
-                        Button("E →") {
-                            viewModel.nudgeJobSite(eastFeet: JobSiteDefaults.nudgeFeet, northFeet: 0)
-                        }
-                    }
-                    .disabled(viewModel.jobSite == nil)
 
                     Toggle("Lock view to Job Site", isOn: $viewModel.lockViewToJobSite)
                     Button("Set from current map view") { viewModel.setJobSiteFromCurrentView() }
@@ -436,12 +473,14 @@ private struct JobSiteOptionsSheet: View {
         .preferredColorScheme(.dark)
     }
 
-    private static func areaHelp(widthFeet: Double, lengthFeet: Double) -> String {
+    private static func areaHelp(widthFeet: Double, lengthFeet: Double, rotationDegrees: Double) -> String {
         let area = widthFeet * lengthFeet
+        let rot = rotationDegrees.truncatingRemainder(dividingBy: 360)
+        let rotNote = abs(rot) < 0.5 ? "" : String(format: " · %.0f°", rot)
         if area < 1_000 {
-            return String(format: "~%.0f×%.0f ft · %.0f sq ft", widthFeet, lengthFeet, area)
+            return String(format: "~%.0f×%.0f ft · %.0f sq ft%@", widthFeet, lengthFeet, area, rotNote)
         }
-        return String(format: "~%.0f×%.0f ft · %.2g sq ft", widthFeet, lengthFeet, area)
+        return String(format: "~%.0f×%.0f ft · %.2g sq ft%@", widthFeet, lengthFeet, area, rotNote)
     }
 }
 
@@ -520,13 +559,18 @@ struct SiteMapRepresentable: UIViewRepresentable {
         context.coordinator.mapView = map
         context.coordinator.applyCameraBoundary()
         context.coordinator.applyOverlays()
+        context.coordinator.syncCropEditor()
         return map
     }
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.viewModel = viewModel
+        context.coordinator.mapView = mapView
         context.coordinator.applyCameraBoundary()
         context.coordinator.applyOverlays()
+        context.coordinator.syncCropEditor()
+        // While cropping, keep the map fixed — only the frame moves.
+        if viewModel.isEditingJobSiteCrop { return }
         if abs(mapView.region.center.latitude - viewModel.region.center.latitude) > 1e-5
             || abs(mapView.region.span.latitudeDelta - viewModel.region.span.latitudeDelta) > 1e-6 {
             mapView.setRegion(viewModel.region, animated: true)
@@ -543,6 +587,12 @@ struct SiteMapRepresentable: UIViewRepresentable {
         private var showingJobSite = false
         private var lastLockedBounds: JobSiteBounds?
         private var lastLockEnabled = false
+        private weak var cropEditor: JobSiteCropEditorView?
+        private var isCropEditing = false
+        private var savedScrollEnabled = true
+        private var savedZoomEnabled = true
+        private var savedRotateEnabled = true
+        private var savedPitchEnabled = true
 
         init(viewModel: SiteMapViewModel) {
             self.viewModel = viewModel
@@ -550,7 +600,9 @@ struct SiteMapRepresentable: UIViewRepresentable {
 
         func applyCameraBoundary() {
             guard let mapView else { return }
-            let shouldLock = viewModel.lockViewToJobSite && (viewModel.jobSite?.isValid == true)
+            let shouldLock = !viewModel.isEditingJobSiteCrop
+                && viewModel.lockViewToJobSite
+                && (viewModel.jobSite?.isValid == true)
             if shouldLock, let jobSite = viewModel.jobSite {
                 if !lastLockEnabled || lastLockedBounds != jobSite {
                     mapView.cameraBoundary = MKMapView.CameraBoundary(mapRect: jobSite.mapRect)
@@ -561,6 +613,50 @@ struct SiteMapRepresentable: UIViewRepresentable {
                 mapView.cameraBoundary = nil
                 lastLockedBounds = nil
                 lastLockEnabled = false
+            }
+        }
+
+        func syncCropEditor() {
+            guard let mapView else { return }
+            let editing = viewModel.isEditingJobSiteCrop
+            if editing {
+                if !isCropEditing {
+                    isCropEditing = true
+                    savedScrollEnabled = mapView.isScrollEnabled
+                    savedZoomEnabled = mapView.isZoomEnabled
+                    savedRotateEnabled = mapView.isRotateEnabled
+                    savedPitchEnabled = mapView.isPitchEnabled
+                    mapView.isScrollEnabled = false
+                    mapView.isZoomEnabled = false
+                    mapView.isRotateEnabled = false
+                    mapView.isPitchEnabled = false
+                    // Apply the zoomed-out preview region once when entering crop mode.
+                    mapView.setRegion(viewModel.region, animated: true)
+                }
+                if cropEditor == nil, let bounds = viewModel.jobSite {
+                    let editor = JobSiteCropEditorView(bounds: bounds)
+                    editor.translatesAutoresizingMaskIntoConstraints = false
+                    editor.mapView = mapView
+                    editor.onBoundsChanged = { [weak self] updated in
+                        self?.viewModel.updateJobSiteFromCrop(updated)
+                    }
+                    mapView.addSubview(editor)
+                    NSLayoutConstraint.activate([
+                        editor.topAnchor.constraint(equalTo: mapView.topAnchor),
+                        editor.bottomAnchor.constraint(equalTo: mapView.bottomAnchor),
+                        editor.leadingAnchor.constraint(equalTo: mapView.leadingAnchor),
+                        editor.trailingAnchor.constraint(equalTo: mapView.trailingAnchor)
+                    ])
+                    cropEditor = editor
+                }
+            } else if isCropEditing {
+                isCropEditing = false
+                cropEditor?.removeFromSuperview()
+                cropEditor = nil
+                mapView.isScrollEnabled = savedScrollEnabled
+                mapView.isZoomEnabled = savedZoomEnabled
+                mapView.isRotateEnabled = savedRotateEnabled
+                mapView.isPitchEnabled = savedPitchEnabled
             }
         }
 
@@ -613,7 +709,9 @@ struct SiteMapRepresentable: UIViewRepresentable {
                 }
             }
 
-            let job = viewModel.showJobSiteOverlay ? viewModel.jobSite : nil
+            // During crop edit the UIKit overlay draws the frame; hide the MapKit polygon.
+            let job = (!viewModel.isEditingJobSiteCrop && viewModel.showJobSiteOverlay)
+                ? viewModel.jobSite : nil
             if job != lastJobSite || (job != nil) != showingJobSite {
                 for overlay in mapView.overlays {
                     if let polygon = overlay as? MKPolygon, polygon.title == "Job Site" {
