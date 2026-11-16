@@ -13,6 +13,8 @@ struct ProjectDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var showDeleteProjectConfirm = false
     @State private var showSiteMap = false
+    @State private var siteMapHeightmap: HeightmapResult?
+    @State private var siteMapOrientation: ScanOrientationSnapshot = .unavailable
     @Environment(\.dismiss) private var dismiss
 
     private var project: Project? {
@@ -40,7 +42,12 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showSiteMap) {
             NavigationStack {
-                SiteMapView(parcelSourceURL: environment.parcelSourceURL)
+                SiteMapView(
+                    heightmap: siteMapHeightmap,
+                    orientation: siteMapOrientation,
+                    contourIntervalInches: environment.preferredContourIntervalInches,
+                    onIntervalChange: { environment.savePreferredContourIntervalInches($0) }
+                )
             }
         }
         .fullScreenCover(isPresented: $showScan) {
@@ -79,6 +86,7 @@ struct ProjectDetailView: View {
                 controlPins: payload.controlPins,
                 preferredContourIntervalInches: environment.preferredContourIntervalInches,
                 orientation: payload.orientation,
+                onContourIntervalChange: { environment.savePreferredContourIntervalInches($0) },
                 onUpload: { beginUpload(payload, force: false) },
                 onRescan: {
                     reviewPayload = nil
@@ -147,14 +155,14 @@ struct ProjectDetailView: View {
                     }
                     capabilityBadge
                     Button {
-                        showSiteMap = true
+                        openContourMap(for: project)
                     } label: {
-                        Label("Site map (GIS / boundaries)", systemImage: "map")
+                        Label("Topo / contour map", systemImage: "map")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                    Text(GISDisclaimer.trespass)
+                    Text("Overlays LiDAR contours on USGS topo. Type the contour interval on the map.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
 
@@ -221,6 +229,33 @@ struct ProjectDetailView: View {
         } else {
             showUnsupported = true
         }
+    }
+
+    private func openContourMap(for project: Project) {
+        siteMapHeightmap = nil
+        siteMapOrientation = .unavailable
+
+        // Prefer in-memory review payload, then latest packaged scan with GPS.
+        if let review = reviewPayload, let heightmap = review.heightmap {
+            siteMapHeightmap = heightmap
+            siteMapOrientation = review.orientation
+        } else {
+            let candidates = project.scanSummaries.sorted { $0.capturedAt > $1.capturedAt }
+            for scan in candidates {
+                let dir: URL
+                if let path = scan.localPackagePath {
+                    dir = URL(fileURLWithPath: path)
+                } else {
+                    dir = environment.localScanStore.packageURL(for: scan.id)
+                }
+                if let loaded = try? ScanPackageReader.load(from: dir) {
+                    siteMapHeightmap = loaded.heightmap
+                    siteMapOrientation = loaded.orientation
+                    break
+                }
+            }
+        }
+        showSiteMap = true
     }
 
     private func deleteScan(scanId: UUID, projectId: UUID) {

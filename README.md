@@ -113,19 +113,19 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 - `Features/Projects` — local project list/detail
 - `LiDirtTests` — DEMBuilder, QualityScorer, MetadataCodec
 
-## Site map / GIS (trespass awareness)
+## Topo / contour map
 
-From a project, open **Site map (GIS / boundaries)**:
+From a project (**Topo / contour map**) or scan review (**Show on USGS topo map**):
 
-- Live GPS position + compass
-- Optional **USGS topo** tile overlay (public National Map)
-- Optional **parcel / boundary** polygons: in **Settings → GIS / property lines**, search by **ZIP** or **county + state** (finds a public ArcGIS layer when one exists). Advanced custom FeatureServer/GeoJSON URL still available.
+- **USGS topo** tile basemap (public National Map)
+- **LiDAR contours** from your averaged DEM, placed with phone GPS/compass (when the scan has a fix)
+- **Typed contour interval** (inches) — Settings default, editable on the map and on scan review
 
-Boundary lines are approximate trespass-awareness only — not a survey or title opinion. LiDirt does not include a nationwide private-parcel database; coverage depends on what each county publishes openly.
+Display / planning aid only — not a certified survey or absolute elevation.
 
 ## Out of scope (still deferred)
 
-Invoices, Foreman Mode, Stripe, full web ops dashboard, licensed nationwide parcel DB.
+Invoices, Foreman Mode, Stripe, full web ops dashboard.
 
 ## Spec / product docs
 
