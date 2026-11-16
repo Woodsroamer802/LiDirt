@@ -4,17 +4,24 @@ import MapKit
 struct SiteMapView: View {
     @StateObject private var viewModel: SiteMapViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var intervalText: String
+    var onIntervalChange: ((Double) -> Void)?
 
     init(
-        initialCoordinate: CLLocationCoordinate2D? = nil,
-        parcelSourceURL: String = ""
+        heightmap: HeightmapResult? = nil,
+        orientation: ScanOrientationSnapshot = .unavailable,
+        contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
+        onIntervalChange: ((Double) -> Void)? = nil
     ) {
         _viewModel = StateObject(
             wrappedValue: SiteMapViewModel(
-                initialCoordinate: initialCoordinate,
-                parcelSourceURL: parcelSourceURL
+                heightmap: heightmap,
+                orientation: orientation,
+                contourIntervalInches: contourIntervalInches
             )
         )
+        _intervalText = State(initialValue: Self.formatInterval(contourIntervalInches))
+        self.onIntervalChange = onIntervalChange
     }
 
     var body: some View {
@@ -24,21 +31,13 @@ struct SiteMapView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 header
-                if let warning = viewModel.trespassWarning {
-                    Text(warning)
-                        .font(LiDirtTypography.caption)
-                        .foregroundStyle(LiDirtColors.gunmetalDeep)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 10))
-                }
                 Spacer()
                 footer
             }
             .padding(16)
         }
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
-        .navigationTitle("Site map")
+        .navigationTitle("Topo / contours")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -60,49 +59,72 @@ struct SiteMapView: View {
 
             HStack(spacing: 10) {
                 toggleChip("USGS topo", isOn: $viewModel.showTopo)
-                toggleChip("Parcels", isOn: $viewModel.showParcels)
-                Button {
-                    viewModel.refreshParcels()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .foregroundStyle(LiDirtColors.constructionYellow)
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .accessibilityLabel("Refresh parcels")
+                toggleChip("LiDAR contours", isOn: Binding(
+                    get: { viewModel.showContours },
+                    set: { newValue in
+                        viewModel.showContours = newValue
+                        viewModel.rebuildContours()
+                    }
+                ))
             }
 
-            if viewModel.isLoadingParcels {
-                ProgressView()
-                    .tint(LiDirtColors.constructionYellow)
-            }
-            if let parcelError = viewModel.parcelError {
-                Text(parcelError)
+            HStack(spacing: 8) {
+                Text("Interval (in)")
                     .font(LiDirtTypography.caption)
-                    .foregroundStyle(LiDirtColors.danger)
+                    .foregroundStyle(LiDirtColors.textSecondary)
+                TextField("0.125", text: $intervalText)
+                    .keyboardType(.decimalPad)
+                    .font(LiDirtTypography.mono)
+                    .foregroundStyle(LiDirtColors.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(LiDirtColors.gunmetalElevated, in: RoundedRectangle(cornerRadius: 8))
+                    .frame(maxWidth: 120)
+                Button("Apply") {
+                    applyInterval()
+                }
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.gunmetalDeep)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 8))
+            }
+            .padding(10)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+
+            if let note = viewModel.contourNote {
+                Text(note)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.gunmetalDeep)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 10))
             }
         }
     }
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(GISDisclaimer.trespass)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textSecondary)
-            Text(GISDisclaimer.noNationwideParcels)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
+        Text(GISDisclaimer.topoContours)
+            .font(LiDirtTypography.caption)
+            .foregroundStyle(LiDirtColors.textMuted)
+            .padding(12)
+            .background(LiDirtColors.gunmetalDeep.opacity(0.92), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func applyInterval() {
+        let cleaned = intervalText.replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(cleaned), value > 0 else {
+            intervalText = Self.formatInterval(viewModel.contourIntervalInches)
+            return
         }
-        .padding(12)
-        .background(LiDirtColors.gunmetalDeep.opacity(0.92), in: RoundedRectangle(cornerRadius: 12))
+        viewModel.setContourIntervalInches(value)
+        intervalText = Self.formatInterval(viewModel.contourIntervalInches)
+        onIntervalChange?(viewModel.contourIntervalInches)
     }
 
     private func toggleChip(_ title: String, isOn: Binding<Bool>) -> some View {
         Button {
             isOn.wrappedValue.toggle()
-            if title == "Parcels" {
-                viewModel.refreshParcels()
-            }
         } label: {
             Text(title)
                 .font(LiDirtTypography.caption)
@@ -120,6 +142,13 @@ struct SiteMapView: View {
                     Capsule().stroke(LiDirtColors.constructionYellow, lineWidth: 1)
                 )
         }
+    }
+
+    private static func formatInterval(_ inches: Double) -> String {
+        if inches < 1 {
+            return String(format: "%g", inches)
+        }
+        return String(format: "%.2f", inches)
     }
 }
 
@@ -146,13 +175,17 @@ struct SiteMapRepresentable: UIViewRepresentable {
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.viewModel = viewModel
         context.coordinator.applyOverlays()
+        if abs(mapView.region.center.latitude - viewModel.region.center.latitude) > 1e-5
+            || abs(mapView.region.span.latitudeDelta - viewModel.region.span.latitudeDelta) > 1e-6 {
+            mapView.setRegion(viewModel.region, animated: false)
+        }
     }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var viewModel: SiteMapViewModel
         weak var mapView: MKMapView?
         private var topoOverlay: MKTileOverlay?
-        private var lastParcelIDs: [String] = []
+        private var lastContourIDs: [String] = []
 
         init(viewModel: SiteMapViewModel) {
             self.viewModel = viewModel
@@ -172,19 +205,17 @@ struct SiteMapRepresentable: UIViewRepresentable {
                 self.topoOverlay = nil
             }
 
-            let ids = viewModel.parcels.map(\.id)
-            if ids != lastParcelIDs || !viewModel.showParcels {
-                for overlay in mapView.overlays where overlay is MKPolygon {
+            let ids = viewModel.contourPolylines.map(\.id)
+            if ids != lastContourIDs {
+                for overlay in mapView.overlays where overlay is MKPolyline {
                     mapView.removeOverlay(overlay)
                 }
-                lastParcelIDs = viewModel.showParcels ? ids : []
-                if viewModel.showParcels {
-                    for parcel in viewModel.parcels {
-                        var coords = parcel.coordinates
-                        let polygon = MKPolygon(coordinates: &coords, count: coords.count)
-                        polygon.title = parcel.label
-                        mapView.addOverlay(polygon, level: .aboveLabels)
-                    }
+                lastContourIDs = ids
+                for line in viewModel.contourPolylines {
+                    var coords = line.coordinates
+                    let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+                    polyline.title = String(format: "%.4f m", line.elevationM)
+                    mapView.addOverlay(polyline, level: .aboveLabels)
                 }
             }
         }
@@ -193,12 +224,10 @@ struct SiteMapRepresentable: UIViewRepresentable {
             if let tile = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tile)
             }
-            if let polygon = overlay as? MKPolygon {
-                let renderer = MKPolygonRenderer(polygon: polygon)
-                // Match LiDirt construction yellow without bridging SwiftUI Color.
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
                 let yellow = UIColor(red: 0.96, green: 0.78, blue: 0.12, alpha: 1)
                 renderer.strokeColor = yellow
-                renderer.fillColor = yellow.withAlphaComponent(0.12)
                 renderer.lineWidth = 2
                 return renderer
             }

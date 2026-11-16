@@ -8,34 +8,46 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var region: MKCoordinateRegion
     @Published var userCoordinate: CLLocationCoordinate2D?
     @Published var showTopo = true
-    @Published var showParcels = true
-    @Published var parcels: [ParcelPolygon] = []
+    @Published var showContours = true
+    @Published var contourIntervalInches: Double
+    @Published var contourPolylines: [ContourMapGeoref.ContourPolyline] = []
     @Published var statusMessage = "Locating…"
-    @Published var trespassWarning: String?
-    @Published var isLoadingParcels = false
-    @Published var parcelError: String?
+    @Published var contourNote: String?
 
-    var parcelSourceURL: String
     private let locationManager = CLLocationManager()
-    private let parcelService = ParcelBoundaryService()
-    private var loadTask: Task<Void, Never>?
-
-    /// Warn when within this distance of a mapped boundary edge.
-    private let warnDistanceMeters: Double = 40
+    private let heightmap: HeightmapResult?
+    private let orientation: ScanOrientationSnapshot
+    private var didFitScanRegion = false
 
     init(
-        initialCoordinate: CLLocationCoordinate2D? = nil,
-        parcelSourceURL: String = ""
+        heightmap: HeightmapResult? = nil,
+        orientation: ScanOrientationSnapshot = .unavailable,
+        contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
+        initialCoordinate: CLLocationCoordinate2D? = nil
     ) {
-        self.parcelSourceURL = parcelSourceURL
-        if let initialCoordinate {
+        self.heightmap = heightmap
+        self.orientation = orientation
+        self.contourIntervalInches = max(contourIntervalInches, 0.01)
+
+        if let lat = orientation.latitude, let lon = orientation.longitude {
+            let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            if let heightmap {
+                region = ContourMapGeoref.region(heightmap: heightmap, origin: origin)
+                didFitScanRegion = true
+            } else {
+                region = MKCoordinateRegion(
+                    center: origin,
+                    span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
+                )
+            }
+            userCoordinate = origin
+        } else if let initialCoordinate {
             region = MKCoordinateRegion(
                 center: initialCoordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
             )
             userCoordinate = initialCoordinate
         } else {
-            // Contiguous US default until GPS fixes.
             region = MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
                 span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30)
@@ -44,85 +56,87 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        rebuildContours()
     }
 
     func onAppear() {
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
-        statusMessage = "Seeking GPS for site awareness…"
-        scheduleParcelLoad()
+        if heightmap == nil {
+            statusMessage = "USGS topo — scan a pad to overlay LiDAR contours."
+        } else if orientation.latitude == nil {
+            statusMessage = "Scan has no GPS fix — showing topo only."
+            contourNote = GISDisclaimer.needScanGPS
+        } else {
+            refreshStatus()
+        }
     }
 
     func onDisappear() {
         locationManager.stopUpdatingLocation()
-        loadTask?.cancel()
     }
 
-    func refreshParcels() {
-        scheduleParcelLoad()
+    func setContourIntervalInches(_ inches: Double) {
+        let clamped = max(inches, 0.01)
+        guard abs(clamped - contourIntervalInches) > 1e-9 else { return }
+        contourIntervalInches = clamped
+        rebuildContours()
+        refreshStatus()
+    }
+
+    func rebuildContours() {
+        guard showContours,
+              let heightmap,
+              let lat = orientation.latitude,
+              let lon = orientation.longitude else {
+            contourPolylines = []
+            if heightmap != nil, orientation.latitude == nil {
+                contourNote = GISDisclaimer.needScanGPS
+            } else if heightmap == nil {
+                contourNote = nil
+            } else if !showContours {
+                contourNote = nil
+            }
+            return
+        }
+
+        let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        contourPolylines = ContourMapGeoref.polylines(
+            heightmap: heightmap,
+            origin: origin,
+            intervalInches: contourIntervalInches
+        )
+        if !orientation.frameAlignedToNorth {
+            contourNote = "Contours placed with GPS; scan was not north-aligned — orientation is approximate."
+        } else {
+            contourNote = nil
+        }
     }
 
     func regionDidChange(_ newRegion: MKCoordinateRegion) {
         region = newRegion
-        scheduleParcelLoad()
     }
 
-    private func scheduleParcelLoad() {
-        loadTask?.cancel()
-        guard showParcels else {
-            parcels = []
-            parcelError = nil
-            trespassWarning = nil
-            return
-        }
-        let url = parcelSourceURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !url.isEmpty else {
-            parcels = []
-            parcelError = nil
-            statusMessage = "Search county/ZIP in Settings to load property boundary lines."
-            updateTrespassWarning()
-            return
-        }
-
-        isLoadingParcels = true
-        parcelError = nil
-        let regionSnapshot = region
-        loadTask = Task {
-            do {
-                try await Task.sleep(nanoseconds: 350_000_000) // debounce pan
-                if Task.isCancelled { return }
-                let loaded = try await parcelService.fetchParcels(
-                    sourceURLString: url,
-                    region: regionSnapshot
-                )
-                if Task.isCancelled { return }
-                parcels = loaded
-                statusMessage = "Loaded \(loaded.count) boundary ring(s) — approximate."
-                isLoadingParcels = false
-                updateTrespassWarning()
-            } catch {
-                if Task.isCancelled { return }
-                parcels = []
-                parcelError = error.localizedDescription
-                isLoadingParcels = false
-                updateTrespassWarning()
+    private func refreshStatus() {
+        if let heightmap, orientation.latitude != nil {
+            let label: String
+            if contourIntervalInches < 1 {
+                label = String(format: "%.3g in", contourIntervalInches)
+            } else {
+                label = String(format: "%.2g in", contourIntervalInches)
             }
-        }
-    }
-
-    private func updateTrespassWarning() {
-        guard showParcels, let userCoordinate, !parcels.isEmpty else {
-            trespassWarning = nil
-            return
-        }
-        if let distance = parcelService.nearestBoundaryDistanceMeters(
-            from: userCoordinate,
-            polygons: parcels
-        ), distance <= warnDistanceMeters {
-            trespassWarning =
-                "Near a mapped boundary (~\(Int(distance)) m). Verify access before crossing — not a legal property line."
+            statusMessage = "LiDAR contours @ \(label) over USGS topo (\(contourPolylines.count) segments)."
+            if !didFitScanRegion, let lat = orientation.latitude, let lon = orientation.longitude {
+                region = ContourMapGeoref.region(
+                    heightmap: heightmap,
+                    origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                )
+                didFitScanRegion = true
+            }
+        } else if heightmap != nil {
+            statusMessage = "Scan loaded — need GPS on the scan to place contours."
         } else {
-            trespassWarning = nil
+            statusMessage = "USGS topo — scan a pad to overlay LiDAR contours."
         }
     }
 }
@@ -134,7 +148,9 @@ extension SiteMapViewModel: CLLocationManagerDelegate {
             case .authorizedWhenInUse, .authorizedAlways:
                 manager.startUpdatingLocation()
             case .denied, .restricted:
-                statusMessage = "Location denied — map still works; enable GPS for live position."
+                if heightmap == nil {
+                    statusMessage = "Location denied — pan the topo map manually."
+                }
             default:
                 break
             }
@@ -147,26 +163,28 @@ extension SiteMapViewModel: CLLocationManagerDelegate {
             let coord = location.coordinate
             let firstFix = userCoordinate == nil
             userCoordinate = coord
-            if firstFix {
+            if firstFix, heightmap == nil {
                 region = MKCoordinateRegion(
                     center: coord,
                     span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
                 )
-                scheduleParcelLoad()
             }
-            statusMessage = String(
-                format: "GPS %.5f, %.5f (±%.0f m)",
-                coord.latitude,
-                coord.longitude,
-                max(location.horizontalAccuracy, 0)
-            )
-            updateTrespassWarning()
+            if heightmap == nil {
+                statusMessage = String(
+                    format: "GPS %.5f, %.5f (±%.0f m) — scan to overlay contours.",
+                    coord.latitude,
+                    coord.longitude,
+                    max(location.horizontalAccuracy, 0)
+                )
+            }
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
-            statusMessage = "GPS error — pan the map manually."
+            if heightmap == nil {
+                statusMessage = "GPS error — pan the map manually."
+            }
         }
     }
 }

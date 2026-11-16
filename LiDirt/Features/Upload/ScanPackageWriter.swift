@@ -237,3 +237,68 @@ enum ScanPackageWriter {
         CGImageDestinationFinalize(dest)
     }
 }
+
+enum ScanPackageReader {
+    enum LoadError: LocalizedError {
+        case missingFiles
+        case badHeightmapSize
+
+        var errorDescription: String? {
+            switch self {
+            case .missingFiles: return "Scan package is incomplete."
+            case .badHeightmapSize: return "heightmap.f32 size does not match metadata."
+            }
+        }
+    }
+
+    static func load(from directory: URL) throws -> (metadata: ScanMetadata, heightmap: HeightmapResult, orientation: ScanOrientationSnapshot) {
+        let metadataURL = directory.appendingPathComponent("metadata.json")
+        let heightmapURL = directory.appendingPathComponent("heightmap.f32")
+        guard FileManager.default.fileExists(atPath: metadataURL.path),
+              FileManager.default.fileExists(atPath: heightmapURL.path) else {
+            throw LoadError.missingFiles
+        }
+        let metadata = try decodeMetadata(from: Data(contentsOf: metadataURL))
+        let data = try Data(contentsOf: heightmapURL)
+        let expected = metadata.frame.width * metadata.frame.height * MemoryLayout<Float>.size
+        guard data.count == expected else { throw LoadError.badHeightmapSize }
+
+        var elevations = [Float](repeating: 0, count: metadata.frame.width * metadata.frame.height)
+        _ = elevations.withUnsafeMutableBytes { raw in
+            data.copyBytes(to: raw)
+        }
+
+        let bounds = HeightmapBounds(
+            minX: metadata.frame.boundsMin.x,
+            maxX: metadata.frame.boundsMax.x,
+            minZ: metadata.frame.boundsMin.z,
+            maxZ: metadata.frame.boundsMax.z,
+            minY: metadata.frame.boundsMin.y,
+            maxY: metadata.frame.boundsMax.y
+        )
+        let heightmap = HeightmapResult(
+            elevations: elevations,
+            width: metadata.frame.width,
+            height: metadata.frame.height,
+            cellSizeM: metadata.frame.cellSizeM,
+            originX: metadata.frame.origin.x,
+            originZ: metadata.frame.origin.z,
+            sampleCounts: [Int](repeating: 0, count: elevations.count),
+            filledFlags: [Bool](repeating: false, count: elevations.count),
+            bounds: bounds
+        )
+        let orientation = ScanOrientationSnapshot(
+            method: metadata.georef.method,
+            latitude: metadata.georef.gpsApprox.lat,
+            longitude: metadata.georef.gpsApprox.lon,
+            horizontalAccuracyM: metadata.georef.gpsApprox.horizontalAccuracyM,
+            headingDegrees: metadata.georef.heading.degrees,
+            headingAccuracyDegrees: metadata.georef.heading.accuracyDegrees,
+            headingSource: metadata.georef.heading.source,
+            northAlignYawRadians: metadata.georef.heading.northAlignYawRadians,
+            frameAlignedToNorth: metadata.frame.alignedToNorth,
+            disclaimer: metadata.georef.heading.disclaimer
+        )
+        return (metadata, heightmap, orientation)
+    }
+}

@@ -10,6 +10,7 @@ struct ScanReviewView: View {
     let controlPins: [ControlPin]
     let preferredContourIntervalInches: Double
     var orientation: ScanOrientationSnapshot = .unavailable
+    var onContourIntervalChange: ((Double) -> Void)?
 
     var onUpload: () -> Void
     var onRescan: () -> Void
@@ -19,6 +20,9 @@ struct ScanReviewView: View {
     @State private var showLowCoverageConfirm = false
     @State private var showContours = true
     @State private var showDeleteConfirm = false
+    @State private var showTopoMap = false
+    @State private var intervalText: String = ""
+    @State private var activeIntervalInches: Double = ContourPreview.defaultIntervalInches
 
     var body: some View {
         ScrollView {
@@ -37,6 +41,24 @@ struct ScanReviewView: View {
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
         .navigationTitle("Scan review")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            activeIntervalInches = preferredContourIntervalInches
+            intervalText = String(format: "%g", preferredContourIntervalInches)
+        }
+        .sheet(isPresented: $showTopoMap) {
+            NavigationStack {
+                SiteMapView(
+                    heightmap: heightmap,
+                    orientation: orientation,
+                    contourIntervalInches: activeIntervalInches,
+                    onIntervalChange: { value in
+                        activeIntervalInches = value
+                        intervalText = String(format: "%g", value)
+                        onContourIntervalChange?(value)
+                    }
+                )
+            }
+        }
         .toolbar {
             if onDelete != nil {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -100,9 +122,28 @@ struct ScanReviewView: View {
                 Toggle("Contours", isOn: $showContours)
                     .labelsHidden()
                     .tint(LiDirtColors.constructionYellow)
-                Text("1/8 in")
+            }
+
+            HStack(spacing: 8) {
+                Text("Interval (in)")
                     .font(LiDirtTypography.caption)
                     .foregroundStyle(LiDirtColors.textMuted)
+                TextField("0.125", text: $intervalText)
+                    .keyboardType(.decimalPad)
+                    .font(LiDirtTypography.mono)
+                    .foregroundStyle(LiDirtColors.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(LiDirtColors.gunmetalDeep, in: RoundedRectangle(cornerRadius: 8))
+                    .frame(maxWidth: 100)
+                Button("Apply") {
+                    applyInterval()
+                }
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.gunmetalDeep)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 8))
             }
 
             ZStack {
@@ -116,7 +157,7 @@ struct ScanReviewView: View {
                     if showContours {
                         ContourPreviewCanvas(
                             heightmap: heightmap,
-                            intervalInches: preferredContourIntervalInches
+                            intervalInches: activeIntervalInches
                         )
                         .aspectRatio(CGFloat(heightmap.width) / CGFloat(max(heightmap.height, 1)), contentMode: .fit)
                         .allowsHitTesting(false)
@@ -131,10 +172,32 @@ struct ScanReviewView: View {
                 }
             }
 
-            Text("Contour intervals down to 1/8 inch on the smoothed surface (display only). Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
+            if heightmap != nil {
+                Button {
+                    applyInterval()
+                    showTopoMap = true
+                } label: {
+                    Label("Show on USGS topo map", systemImage: "map")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(LiDirtSecondaryButtonStyle())
+            }
+
+            Text("Type a contour interval (inches). Contours are display-only on the smoothed DEM. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
         }
+    }
+
+    private func applyInterval() {
+        let cleaned = intervalText.replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(cleaned), value > 0 else {
+            intervalText = String(format: "%g", activeIntervalInches)
+            return
+        }
+        activeIntervalInches = max(value, 0.01)
+        intervalText = String(format: "%g", activeIntervalInches)
+        onContourIntervalChange?(activeIntervalInches)
     }
 
     private var orientationSection: some View {

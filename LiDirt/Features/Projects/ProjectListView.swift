@@ -159,13 +159,7 @@ struct SettingsView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     @State private var apiText: String = ""
-    @State private var parcelCountyText: String = ""
-    @State private var parcelState: String = ""
-    @State private var parcelZIPText: String = ""
-    @State private var parcelURLText: String = ""
-    @State private var isSearchingParcels = false
-    @State private var parcelSearchMessage: String?
-    @State private var showAdvancedParcelURL = false
+    @State private var contourIntervalText: String = ""
 
     var body: some View {
         NavigationStack {
@@ -175,67 +169,6 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Text("Default uses local stub acceptance when host is api.lidirt.example.")
-                        .font(LiDirtTypography.caption)
-                        .foregroundStyle(LiDirtColors.textMuted)
-                }
-                Section("GIS / property lines") {
-                    TextField("ZIP code", text: $parcelZIPText)
-                        .keyboardType(.numberPad)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField("County", text: $parcelCountyText)
-                        .textInputAutocapitalization(.words)
-                    Picker("State", selection: $parcelState) {
-                        Text("Select").tag("")
-                        ForEach(USStateOption.allCases) { state in
-                            Text(state.label).tag(state.rawValue)
-                        }
-                    }
-                    Button {
-                        Task { await searchParcels() }
-                    } label: {
-                        if isSearchingParcels {
-                            ProgressView()
-                        } else {
-                            Text("Find parcel lines")
-                        }
-                    }
-                    .disabled(isSearchingParcels)
-
-                    if let parcelSearchMessage {
-                        Text(parcelSearchMessage)
-                            .font(LiDirtTypography.caption)
-                            .foregroundStyle(LiDirtColors.textSecondary)
-                    }
-                    if !environment.parcelSourceTitle.isEmpty {
-                        Text("Using: \(environment.parcelSourceTitle)")
-                            .font(LiDirtTypography.caption)
-                            .foregroundStyle(LiDirtColors.constructionYellow)
-                    }
-                    if !environment.parcelSourceURL.isEmpty {
-                        Text(environment.parcelSourceURL)
-                            .font(LiDirtTypography.caption)
-                            .foregroundStyle(LiDirtColors.textMuted)
-                            .lineLimit(2)
-                        Button("Clear parcel source", role: .destructive) {
-                            environment.clearParcelSource()
-                            parcelSearchMessage = "Parcel source cleared."
-                        }
-                    }
-
-                    DisclosureGroup("Advanced: custom URL", isExpanded: $showAdvancedParcelURL) {
-                        TextField("FeatureServer or GeoJSON URL", text: $parcelURLText)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                        Text("Only needed if county/ZIP search cannot find an open layer.")
-                            .font(LiDirtTypography.caption)
-                            .foregroundStyle(LiDirtColors.textMuted)
-                    }
-
-                    Text(GISDisclaimer.dataLimits)
-                        .font(LiDirtTypography.caption)
-                        .foregroundStyle(LiDirtColors.textMuted)
-                    Text(GISDisclaimer.noNationwideParcels)
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 }
@@ -256,13 +189,16 @@ struct SettingsView: View {
                     }
                 }
                 Section("Contours") {
-                    Text("Preferred interval: \(environment.preferredContourIntervalInches) in (1/8 in default)")
-                        .foregroundStyle(LiDirtColors.textSecondary)
+                    TextField("Interval (inches)", text: $contourIntervalText)
+                        .keyboardType(.decimalPad)
+                    Text("Used on scan review and the topo / contour map. Default 0.125 in (1/8 in).")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
                 }
                 Section("Disclaimer") {
                     Text(ScanPackageWriter.disclaimer)
                         .font(LiDirtTypography.caption)
-                    Text(GISDisclaimer.trespass)
+                    Text(GISDisclaimer.topoContours)
                         .font(LiDirtTypography.caption)
                 }
                 Section {
@@ -279,14 +215,9 @@ struct SettingsView: View {
                         if let url = URL(string: apiText), !apiText.isEmpty {
                             environment.updateAPIBaseURL(url)
                         }
-                        environment.saveParcelPlace(
-                            county: parcelCountyText,
-                            state: parcelState,
-                            zip: parcelZIPText
-                        )
-                        let custom = parcelURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !custom.isEmpty, custom != environment.parcelSourceURL {
-                            environment.saveParcelSourceURL(custom, title: "Custom parcel URL")
+                        let cleaned = contourIntervalText.replacingOccurrences(of: ",", with: ".")
+                        if let value = Double(cleaned), value > 0 {
+                            environment.savePreferredContourIntervalInches(value)
                         }
                         dismiss()
                     }
@@ -294,35 +225,8 @@ struct SettingsView: View {
             }
             .onAppear {
                 apiText = environment.apiBaseURL.absoluteString
-                parcelCountyText = environment.parcelCounty
-                parcelState = environment.parcelState
-                parcelZIPText = environment.parcelZIP
-                parcelURLText = environment.parcelSourceURL
+                contourIntervalText = String(format: "%g", environment.preferredContourIntervalInches)
             }
-        }
-    }
-
-    @MainActor
-    private func searchParcels() async {
-        isSearchingParcels = true
-        parcelSearchMessage = "Searching open county GIS…"
-        defer { isSearchingParcels = false }
-        do {
-            let resolution = try await ParcelSourceResolver().resolve(
-                query: ParcelPlaceQuery(
-                    county: parcelCountyText,
-                    state: parcelState,
-                    zip: parcelZIPText
-                )
-            )
-            environment.saveParcelResolution(resolution)
-            parcelCountyText = resolution.county
-            parcelState = resolution.state
-            parcelZIPText = resolution.zip
-            parcelURLText = resolution.layerURL
-            parcelSearchMessage = "Found \(resolution.title)."
-        } catch {
-            parcelSearchMessage = error.localizedDescription
         }
     }
 }
