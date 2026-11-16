@@ -15,7 +15,7 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 
 ## Open & run (LiDAR Pro device)
 
-1. Clone this repo and open `LiDirt.xcodeproj` in Xcode on a Mac.
+1. Clone this repo (`git clone https://github.com/Woodsroamer802/LiDirt.git`) and open **`LiDirt.xcodeproj`** in Xcode (File → Open — not a random folder). If Xcode says the project is damaged/unreadable, pull latest `main`; a bad Features/GIS group entry was fixed there.
 2. Select the **LiDirt** scheme and your physical Pro device (not Simulator for capture).
 3. Set your Development Team under Signing & Capabilities.
 4. Build & Run.
