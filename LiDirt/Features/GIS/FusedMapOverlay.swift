@@ -18,12 +18,12 @@ final class FusedMapGroundOverlay: NSObject, MKOverlay {
 
 /// Draws the fused map image into the overlay’s map rect.
 ///
-/// Uses the ObjC `drawMapRect:zoomScale:` selector explicitly. Some Swift/MapKit
-/// SDK views don’t surface `draw(_:zoomScale:)` as an overridable Swift method
-/// (“Method does not override any method from its superclass”).
+/// Uses a unique Swift method name with a single `@objc(drawMapRect:zoomScale:)` so we
+/// avoid both “does not override” (on `draw(_:zoomScale:)`) and “Duplicate modifier”
+/// (from `@objc` + a Swift name that already maps to the same selector).
 final class FusedMapOverlayRenderer: MKOverlayRenderer {
     @objc(drawMapRect:zoomScale:)
-    func drawMapRect(_ mapRect: MKMapRect, zoomScale: MKZoomScale) {
+    func drawFusedMapRect(_ mapRect: MKMapRect, zoomScale: MKZoomScale) {
         guard let fused = overlay as? FusedMapGroundOverlay,
               let cgImage = fused.image.cgImage,
               let context = UIGraphicsGetCurrentContext() else { return }
@@ -38,10 +38,5 @@ final class FusedMapOverlayRenderer: MKOverlayRenderer {
         context.scaleBy(x: 1, y: -1)
         context.draw(cgImage, in: CGRect(origin: .zero, size: imageRect.size))
         context.restoreGState()
-    }
-
-    @objc(canDrawMapRect:zoomScale:)
-    func canDrawMapRect(_ mapRect: MKMapRect, zoomScale: MKZoomScale) -> Bool {
-        overlay is FusedMapGroundOverlay
     }
 }
