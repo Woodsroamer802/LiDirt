@@ -159,6 +159,7 @@ struct SettingsView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     @State private var apiText: String = ""
+    @State private var parcelURLText: String = ""
 
     var body: some View {
         NavigationStack {
@@ -168,6 +169,17 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Text("Default uses local stub acceptance when host is api.lidirt.example.")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                }
+                Section("GIS / property lines") {
+                    TextField("Parcel FeatureServer or GeoJSON URL", text: $parcelURLText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Text(GISDisclaimer.dataLimits)
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                    Text(GISDisclaimer.notOnX)
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 }
@@ -185,6 +197,8 @@ struct SettingsView: View {
                 Section("Disclaimer") {
                     Text(ScanPackageWriter.disclaimer)
                         .font(LiDirtTypography.caption)
+                    Text(GISDisclaimer.trespass)
+                        .font(LiDirtTypography.caption)
                 }
                 Section {
                     Button("Sign out", role: .destructive) {
@@ -200,11 +214,15 @@ struct SettingsView: View {
                         if let url = URL(string: apiText), !apiText.isEmpty {
                             environment.updateAPIBaseURL(url)
                         }
+                        environment.saveParcelSourceURL(parcelURLText)
                         dismiss()
                     }
                 }
             }
-            .onAppear { apiText = environment.apiBaseURL.absoluteString }
+            .onAppear {
+                apiText = environment.apiBaseURL.absoluteString
+                parcelURLText = environment.parcelSourceURL
+            }
         }
     }
 }

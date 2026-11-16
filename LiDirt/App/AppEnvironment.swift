@@ -6,6 +6,8 @@ final class AppEnvironment: ObservableObject {
     @Published var authToken: String?
     @Published var preferredUnits: UnitsPreference
     @Published var preferredContourIntervalInches: Double
+    /// County / government ArcGIS FeatureServer layer URL or GeoJSON endpoint for parcel lines.
+    @Published var parcelSourceURL: String
 
     let projectStore: ProjectStore
     let authService: AuthService
@@ -13,16 +15,24 @@ final class AppEnvironment: ObservableObject {
     let localScanStore: LocalScanStore
     let tokenBox: TokenBox
 
+    private let defaults: UserDefaults
+
     init(
         apiBaseURL: URL = URL(string: "https://api.lidirt.example/v1")!,
         authToken: String? = nil,
         preferredUnits: UnitsPreference = .usCustomary,
-        preferredContourIntervalInches: Double = 0.125
+        preferredContourIntervalInches: Double = 0.125,
+        parcelSourceURL: String? = nil,
+        defaults: UserDefaults = .standard
     ) {
+        self.defaults = defaults
         self.apiBaseURL = apiBaseURL
         self.authToken = authToken
         self.preferredUnits = preferredUnits
         self.preferredContourIntervalInches = preferredContourIntervalInches
+        self.parcelSourceURL = parcelSourceURL
+            ?? defaults.string(forKey: "parcelSourceURL")
+            ?? ""
 
         let paths = FilePaths.shared
         let tokenBox = TokenBox(authToken)
@@ -32,6 +42,11 @@ final class AppEnvironment: ObservableObject {
         self.authService = AuthService()
         let client = APIClient(baseURL: apiBaseURL, tokenBox: tokenBox)
         self.uploadQueue = UploadQueue(paths: paths, uploadService: UploadService(client: client))
+    }
+
+    func saveParcelSourceURL(_ url: String) {
+        parcelSourceURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        defaults.set(parcelSourceURL, forKey: "parcelSourceURL")
     }
 
     func applyAuthToken(_ token: String?) {
