@@ -10,6 +10,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var showTopo = true
     @Published var showContours = true
     @Published var contourIntervalInches: Double
+    @Published var contourSurfaceMode: ContourSurfaceMode
     @Published var contourPolylines: [ContourMapGeoref.ContourPolyline] = []
     @Published var statusMessage = "Locating…"
     @Published var contourNote: String?
@@ -20,6 +21,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var sharePDFURL: URL?
 
     let projectName: String
+    var onSurfaceModeChange: ((ContourSurfaceMode) -> Void)?
     private let locationManager = CLLocationManager()
     private let lidarHeightmap: HeightmapResult?
     private let orientation: ScanOrientationSnapshot
@@ -32,12 +34,14 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         heightmap: HeightmapResult? = nil,
         orientation: ScanOrientationSnapshot = .unavailable,
         contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
+        contourSurfaceMode: ContourSurfaceMode = .smoothedGround,
         elevationService: USGSElevationService = USGSElevationService()
     ) {
         self.projectName = projectName
         self.lidarHeightmap = heightmap
         self.orientation = orientation
         self.contourIntervalInches = max(contourIntervalInches, 0.01)
+        self.contourSurfaceMode = contourSurfaceMode
         self.elevationService = elevationService
 
         if let lat = orientation.latitude, let lon = orientation.longitude {
@@ -86,6 +90,14 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         let clamped = max(inches, 0.01)
         guard abs(clamped - contourIntervalInches) > 1e-9 else { return }
         contourIntervalInches = clamped
+        rebuildContours()
+        refreshStatus()
+    }
+
+    func setContourSurfaceMode(_ mode: ContourSurfaceMode) {
+        guard mode != contourSurfaceMode else { return }
+        contourSurfaceMode = mode
+        onSurfaceModeChange?(mode)
         rebuildContours()
         refreshStatus()
     }
@@ -157,10 +169,9 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             origin: origin,
             intervalInches: contourIntervalInches
         )
-        if fusedResult == nil, orientation.latitude != nil, !isFusing, contourNote == nil {
-            if !orientation.frameAlignedToNorth {
-                contourNote = "Contours placed with GPS; scan was not north-aligned — orientation is approximate."
-            }
+        if fusedResult == nil, orientation.latitude != nil, !isFusing, contourNote == nil,
+           !orientation.frameAlignedToNorth {
+            contourNote = "Contours placed with GPS; scan was not north-aligned — orientation is approximate."
         }
     }
 
@@ -181,13 +192,15 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             printError = "Need a fused/LiDAR surface with GPS to print."
             return
         }
+        let method = (fusedResult?.method ?? "lidar_only") + "/" + contourSurfaceMode.rawValue
         let model = SiteMapPrintModel(
             projectName: projectName,
             sheet: sheet,
             heightmap: source,
             origin: CLLocationCoordinate2D(latitude: lat, longitude: lon),
             intervalInches: contourIntervalInches,
-            methodLabel: fusedResult?.method ?? "lidar_only",
+            methodLabel: method,
+            surfaceModeLabel: contourSurfaceMode.label,
             verticalBiasM: fusedResult?.verticalBiasM ?? 0,
             lidarCellCount: fusedResult?.lidarSampleCount
                 ?? source.elevations.filter { !$0.isNaN }.count,
@@ -200,8 +213,13 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         }
     }
 
-    private var contourSourceHeightmap: HeightmapResult? {
+    private var rawContourSourceHeightmap: HeightmapResult? {
         fusedResult?.heightmap ?? lidarHeightmap
+    }
+
+    private var contourSourceHeightmap: HeightmapResult? {
+        guard let raw = rawContourSourceHeightmap else { return nil }
+        return DEMGroundSmoother.prepareForContours(raw, mode: contourSurfaceMode)
     }
 
     private func refreshStatus() {
@@ -209,12 +227,13 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             statusMessage = fuseProgress ?? "Fusing USGS 3DEP + LiDAR…"
             return
         }
+        let surface = contourSurfaceMode == .smoothedGround ? "smoothed" : "as-scanned"
         if let fused = fusedResult {
             let label = contourIntervalInches < 1
                 ? String(format: "%.3g in", contourIntervalInches)
                 : String(format: "%.2g in", contourIntervalInches)
             statusMessage =
-                "Fused map @ \(label) — 3DEP foundation + \(fused.lidarSampleCount) LiDAR cells (\(contourPolylines.count) segments)."
+                "Fused \(surface) @ \(label) — 3DEP + \(fused.lidarSampleCount) LiDAR cells (\(contourPolylines.count) segments)."
             if !didFitScanRegion, let lat = orientation.latitude, let lon = orientation.longitude {
                 region = ContourMapGeoref.region(
                     heightmap: fused.heightmap,
@@ -223,7 +242,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 didFitScanRegion = true
             }
         } else if lidarHeightmap != nil, orientation.latitude != nil {
-            statusMessage = "LiDAR contours on topo — fuse pending or unavailable."
+            statusMessage = "LiDAR \(surface) contours on topo — fuse pending or unavailable."
         } else if lidarHeightmap != nil {
             statusMessage = "Scan loaded — need GPS to place and fuse."
         } else {

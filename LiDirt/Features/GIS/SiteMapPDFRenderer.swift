@@ -10,6 +10,7 @@ struct SiteMapPrintModel: Sendable {
     var origin: CLLocationCoordinate2D
     var intervalInches: Double
     var methodLabel: String
+    var surfaceModeLabel: String
     var verticalBiasM: Double
     var lidarCellCount: Int
     var capturedAt: Date
@@ -269,8 +270,8 @@ enum SiteMapPDFRenderer {
             "Project: \(model.projectName)",
             "Sheet: \(model.sheet.label)  ·  Contour interval: \(intervalLabel)  ·  \(scaleText)",
             String(
-                format: "Extent ≈ %.0f × %.0f ft  ·  Method: %@  ·  LiDAR cells: %d  ·  Vertical bias: %.2f m",
-                rf, rd, model.methodLabel, model.lidarCellCount, model.verticalBiasM
+                format: "Surface: %@  ·  Extent ≈ %.0f × %.0f ft  ·  Method: %@  ·  LiDAR cells: %d  ·  Bias: %.2f m",
+                model.surfaceModeLabel, rf, rd, model.methodLabel, model.lidarCellCount, model.verticalBiasM
             ),
             "USGS 3DEP foundation + phone LiDAR detail (GPS/compass place). Not a certified survey. \(date)"
         ]

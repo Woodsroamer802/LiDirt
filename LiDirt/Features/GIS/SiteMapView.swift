@@ -8,23 +8,29 @@ struct SiteMapView: View {
     @State private var showPrintSheet = false
     var onIntervalChange: ((Double) -> Void)?
 
+    var onSurfaceModeChange: ((ContourSurfaceMode) -> Void)?
+
     init(
         projectName: String = "Site",
         heightmap: HeightmapResult? = nil,
         orientation: ScanOrientationSnapshot = .unavailable,
         contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
-        onIntervalChange: ((Double) -> Void)? = nil
+        contourSurfaceMode: ContourSurfaceMode = .smoothedGround,
+        onIntervalChange: ((Double) -> Void)? = nil,
+        onSurfaceModeChange: ((ContourSurfaceMode) -> Void)? = nil
     ) {
-        _viewModel = StateObject(
-            wrappedValue: SiteMapViewModel(
-                projectName: projectName,
-                heightmap: heightmap,
-                orientation: orientation,
-                contourIntervalInches: contourIntervalInches
-            )
+        let vm = SiteMapViewModel(
+            projectName: projectName,
+            heightmap: heightmap,
+            orientation: orientation,
+            contourIntervalInches: contourIntervalInches,
+            contourSurfaceMode: contourSurfaceMode
         )
+        vm.onSurfaceModeChange = onSurfaceModeChange
+        _viewModel = StateObject(wrappedValue: vm)
         _intervalText = State(initialValue: Self.formatInterval(contourIntervalInches))
         self.onIntervalChange = onIntervalChange
+        self.onSurfaceModeChange = onSurfaceModeChange
     }
 
     var body: some View {
@@ -95,6 +101,26 @@ struct SiteMapView: View {
                         .tint(LiDirtColors.constructionYellow)
                 }
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Ground detail")
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textSecondary)
+                Picker("Ground detail", selection: Binding(
+                    get: { viewModel.contourSurfaceMode },
+                    set: { viewModel.setContourSurfaceMode($0) }
+                )) {
+                    ForEach(ContourSurfaceMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(viewModel.contourSurfaceMode.shortHelp)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textMuted)
+            }
+            .padding(10)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
 
             HStack(spacing: 8) {
                 Text("Interval (in)")

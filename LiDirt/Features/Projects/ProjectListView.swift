@@ -191,7 +191,18 @@ struct SettingsView: View {
                 Section("Contours") {
                     TextField("Interval (inches)", text: $contourIntervalText)
                         .keyboardType(.decimalPad)
-                    Text("Used on scan review and the topo / contour map. Default 0.125 in (1/8 in).")
+                    Text("Used on scan review and the fused map. Default 0.125 in (1/8 in).")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                    Picker("Ground detail", selection: $environment.contourSurfaceMode) {
+                        ForEach(ContourSurfaceMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .onChange(of: environment.contourSurfaceMode) { _, mode in
+                        environment.saveContourSurfaceMode(mode)
+                    }
+                    Text(environment.contourSurfaceMode.shortHelp)
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 }
