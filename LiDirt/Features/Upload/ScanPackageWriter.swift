@@ -258,7 +258,7 @@ enum ScanPackageReader {
               FileManager.default.fileExists(atPath: heightmapURL.path) else {
             throw LoadError.missingFiles
         }
-        let metadata = try decodeMetadata(from: Data(contentsOf: metadataURL))
+        let metadata = try ScanPackageWriter.decodeMetadata(from: Data(contentsOf: metadataURL))
         let data = try Data(contentsOf: heightmapURL)
         let expected = metadata.frame.width * metadata.frame.height * MemoryLayout<Float>.size
         guard data.count == expected else { throw LoadError.badHeightmapSize }
