@@ -44,7 +44,9 @@ Try in order:
 - Countdown uses large black blocky digits on yellow — wait for it before walking.
 - Do not walk until countdown finishes / Begin pass — sampling stays off until then.
 - Allow Location when prompted so GPS + compass can orient the heightmap to north (approximate).
-- Green on the coverage tint means the **sample goal is met** (≥8 samples/cell), not “touched once.” Amber = incomplete.
+- **Green area** = square meters of cells that already hit ≥8 LiDAR samples. **Green of walked** = that share of cells you’ve actually walked (amber until ≥8). **Residual** = RMS sample noise in those cells (cm) — lower is steadier averaging.
+- Green on the coverage tint means the **sample goal is met** (≥8 samples/cell), not “touched once.” Amber = incomplete. Goal % stays 0 until you Begin pass, walk, and revisit cells enough times.
+- GPS / north box is **hidden by default**; tap the location button on scan, or enable **Settings → Scan HUD → Show GPS box on scan**.
 - Move at a steady walking pace; pause if tracking says “Move slower / better light.”
 - Revisit amber areas; end/start passes yourself for multi-pass averaging.
 - North alignment uses phone GPS/compass when authorized — approximate, not survey-grade. Deny location to keep a local AR frame.

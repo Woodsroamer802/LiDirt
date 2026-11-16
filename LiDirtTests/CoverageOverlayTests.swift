@@ -19,4 +19,26 @@ final class CoverageOverlayTests: XCTestCase {
             .goalMet
         )
     }
+
+    @MainActor
+    func testGoalMetPercentUsesWalkedCellsNotEmptyHull() {
+        let pipeline = CapturePipeline(cellSizeM: 0.05)
+        pipeline.prepareSession()
+        pipeline.forceStartSamplingForTests()
+
+        // One cell short of goal, one at goal — walked denominator is 2 → 50%.
+        var short: [SIMD3<Float>] = []
+        var goal: [SIMD3<Float>] = []
+        for _ in 0..<(CoverageGoals.samplesForGoalMet - 1) {
+            short.append(SIMD3<Float>(0.01, 0, 0.01))
+        }
+        for _ in 0..<CoverageGoals.samplesForGoalMet {
+            goal.append(SIMD3<Float>(0.20, 0, 0.20))
+        }
+        pipeline.ingestTestPoints(short)
+        pipeline.ingestTestPoints(goal)
+
+        XCTAssertEqual(pipeline.goalMetPercent, 50, accuracy: 0.1)
+        XCTAssertGreaterThan(pipeline.trackedAreaM2, 0)
+    }
 }

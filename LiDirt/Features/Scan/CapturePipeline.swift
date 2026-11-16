@@ -233,7 +233,7 @@ final class CapturePipeline: ObservableObject {
         let filtered = filterGroundOriented(aligned)
         accumulator.addSamples(filtered)
 
-        if timestamp - lastPreviewTime >= 2.0 {
+        if timestamp - lastPreviewTime >= 1.0 {
             lastPreviewTime = timestamp
             refreshPreviewMetrics()
         }
@@ -295,33 +295,19 @@ final class CapturePipeline: ObservableObject {
         metrics: QualityMetrics
     ) {
         meanResidualM = metrics.rmsResidualM
+
+        // Use walked cells (any samples) as the denominator so Goal met % moves as you
+        // revisit amber cells to green — not diluted by empty bbox padding.
+        let touched = cells.values.filter { $0.count > 0 }.count
+        let goalMet = cells.values.filter { $0.count >= goalSamplesPerCell }.count
+        goalMetPercent = touched > 0 ? Double(goalMet) / Double(touched) * 100 : 0
+        trackedAreaM2 = Double(goalMet) * cellSizeM * cellSizeM
+
         if let heightmap, heightmap.width > 0, heightmap.height > 0 {
-            let hull = heightmap.width * heightmap.height
-            var goalMet = 0
-            var touched = 0
-            for count in heightmap.sampleCounts {
-                if count > 0 { touched += 1 }
-                if count >= goalSamplesPerCell { goalMet += 1 }
-            }
-            // Also count cells that exist in accumulator but were holes in heightmap (below minSamples).
-            for (_, stats) in cells {
-                if stats.count > 0 && stats.count < minSamplesPerCell {
-                    touched += 1
-                }
-                if stats.count >= goalSamplesPerCell {
-                    // already counted if in heightmap; if not in heightmap width, rare
-                }
-            }
-            goalMetPercent = Double(goalMet) / Double(hull) * 100
-            cellsTouchedPercent = Double(min(touched, hull)) / Double(hull) * 100
-            trackedAreaM2 = Double(goalMet) * cellSizeM * cellSizeM
+            let hull = max(heightmap.width * heightmap.height, 1)
+            cellsTouchedPercent = Double(touched) / Double(hull) * 100
         } else {
-            let total = max(cells.count, 1)
-            let goalMet = cells.values.filter { $0.count >= goalSamplesPerCell }.count
-            let touched = cells.values.filter { $0.count > 0 }.count
-            goalMetPercent = Double(goalMet) / Double(total) * 100
-            cellsTouchedPercent = Double(touched) / Double(total) * 100
-            trackedAreaM2 = Double(goalMet) * cellSizeM * cellSizeM
+            cellsTouchedPercent = touched > 0 ? 100 : 0
         }
         _ = metrics
     }

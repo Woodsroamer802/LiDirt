@@ -183,6 +183,15 @@ struct SettingsView: View {
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 }
+                Section("Scan HUD") {
+                    Toggle("Show GPS box on scan", isOn: $environment.showScanGPSBanner)
+                        .onChange(of: environment.showScanGPSBanner) { _, show in
+                            environment.saveShowScanGPSBanner(show)
+                        }
+                    Text("Off by default. When hidden, tap the location button on the scan screen for GPS / north details.")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                }
                 Section("Units") {
                     Picker("Units", selection: $environment.preferredUnits) {
                         ForEach(UnitsPreference.allCases) { unit in

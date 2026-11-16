@@ -3,6 +3,7 @@ import simd
 
 struct ScanSessionView: View {
     @StateObject private var viewModel: ScanSessionViewModel
+    @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -82,6 +83,20 @@ struct ScanSessionView: View {
         } message: {
             Text("LiDirt needs the camera for LiDAR scene reconstruction. Enable camera access in Settings.")
         }
+        .sheet(isPresented: $viewModel.showOrientationDetails) {
+            NavigationStack {
+                gpsOrientationDetails
+                    .padding()
+                    .navigationTitle("GPS / orientation")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { viewModel.showOrientationDetails = false }
+                        }
+                    }
+            }
+            .presentationDetents([.medium])
+        }
         .statusBarHidden(true)
     }
 
@@ -97,6 +112,17 @@ struct ScanSessionView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
                 Spacer()
+                Button {
+                    viewModel.showOrientationDetails = true
+                } label: {
+                    Image(systemName: viewModel.orientationService.snapshot.frameAlignedToNorth
+                          ? "location.north.line.fill"
+                          : "location")
+                        .foregroundStyle(LiDirtColors.constructionYellow)
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("GPS and orientation")
                 Text(viewModel.passLabel)
                     .font(LiDirtTypography.headline)
                     .foregroundStyle(LiDirtColors.constructionYellow)
@@ -105,15 +131,21 @@ struct ScanSessionView: View {
                     .background(.ultraThinMaterial, in: Capsule())
             }
 
-            HStack(spacing: 16) {
-                metricChip(title: "Goal area", value: viewModel.areaLabel)
+            HStack(spacing: 12) {
                 metricChip(
-                    title: "Goal met",
-                    value: String(format: "%.0f%%", viewModel.pipeline.goalMetPercent)
+                    title: "Green area",
+                    value: viewModel.areaLabel,
+                    footnote: "≥\(CoverageGoals.samplesForGoalMet) samples"
+                )
+                metricChip(
+                    title: "Green of walked",
+                    value: String(format: "%.0f%%", viewModel.pipeline.goalMetPercent),
+                    footnote: "Revisit amber"
                 )
                 metricChip(
                     title: "Residual",
-                    value: String(format: "%.1f cm", viewModel.pipeline.meanResidualM * 100)
+                    value: String(format: "%.1f cm", viewModel.pipeline.meanResidualM * 100),
+                    footnote: "Sample noise"
                 )
             }
 
@@ -129,7 +161,9 @@ struct ScanSessionView: View {
                     : LiDirtColors.coverageThin
                 )
 
-            gpsOrientationBanner
+            if environment.showScanGPSBanner {
+                gpsOrientationBanner
+            }
 
             CoverageLegendView()
         }
@@ -137,8 +171,14 @@ struct ScanSessionView: View {
     }
 
     private var gpsOrientationBanner: some View {
+        gpsOrientationDetails
+            .padding(10)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var gpsOrientationDetails: some View {
         let snap = viewModel.orientationService.snapshot
-        return VStack(alignment: .leading, spacing: 4) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: snap.frameAlignedToNorth ? "location.north.line.fill" : "location")
                     .foregroundStyle(
@@ -175,12 +215,11 @@ struct ScanSessionView: View {
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
             }
-            Text("Phone GPS/compass — approximate, not survey-grade.")
+            Text("Phone GPS/compass — approximate, not survey-grade. Toggle the on-scan box in Settings.")
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
         }
-        .padding(10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var bottomHUD: some View {
@@ -259,7 +298,7 @@ struct ScanSessionView: View {
             .accessibilityLabel("Starting in \(n)")
     }
 
-    private func metricChip(title: String, value: String) -> some View {
+    private func metricChip(title: String, value: String, footnote: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(LiDirtTypography.caption)
@@ -269,6 +308,11 @@ struct ScanSessionView: View {
                 .foregroundStyle(LiDirtColors.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            if let footnote {
+                Text(footnote)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(LiDirtColors.textMuted)
+            }
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
