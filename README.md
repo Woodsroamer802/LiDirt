@@ -15,7 +15,14 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 
 ## Open & run (LiDAR Pro device)
 
-1. Clone this repo (`git clone https://github.com/Woodsroamer802/LiDirt.git`) and open **`LiDirt.xcodeproj`** in Xcode (File → Open — not a random folder). If Xcode says the project is damaged/unreadable, pull latest `main`; a bad Features/GIS group entry was fixed there.
+1. Clone this repo (`git clone https://github.com/Woodsroamer802/LiDirt.git`) and open **`LiDirt.xcodeproj`** in Xcode (**File → Open…** → select `LiDirt.xcodeproj`). Do not open the parent folder or `project.yml`.
+
+### Xcode won’t open the project
+
+1. `cd` into the clone and confirm `LiDirt.xcodeproj/project.pbxproj` exists, then: `open LiDirt.xcodeproj`
+2. If it still fails: delete local DerivedData for LiDirt (`~/Library/Developer/Xcode/DerivedData/LiDirt-*`) and try again.
+3. Still stuck: fresh clone of `main` (don’t reuse a half-merged local copy), then open `LiDirt.xcodeproj` only.
+4. Avoid GitHub’s “Open with Xcode” if it misbehaves — clone in Terminal / GitHub Desktop, then File → Open the `.xcodeproj`.
 2. Select the **LiDirt** scheme and your physical Pro device (not Simulator for capture).
 3. Set your Development Team under Signing & Capabilities.
 4. Build & Run.
