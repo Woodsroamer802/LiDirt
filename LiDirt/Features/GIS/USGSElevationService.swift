@@ -94,15 +94,24 @@ struct USGSElevationService: Sendable {
     func fetchElevations(_ coordinates: [CLLocationCoordinate2D]) async throws -> [Double?] {
         guard !coordinates.isEmpty else { return [] }
         var out = [Double?](repeating: nil, count: coordinates.count)
-        var start = 0
-        while start < coordinates.count {
-            let end = min(start + batchSize, coordinates.count)
-            let batch = Array(coordinates[start..<end])
-            let values = try await fetchBatch(batch)
-            for (offset, value) in values.enumerated() {
-                out[start + offset] = value
+        // Parallel batches — sequential USGS calls were a major scan→map delay.
+        try await withThrowingTaskGroup(of: (Int, [Double?]).self) { group in
+            var start = 0
+            while start < coordinates.count {
+                let end = min(start + batchSize, coordinates.count)
+                let batch = Array(coordinates[start..<end])
+                let batchStart = start
+                group.addTask {
+                    let values = try await self.fetchBatch(batch)
+                    return (batchStart, values)
+                }
+                start = end
             }
-            start = end
+            for try await (batchStart, values) in group {
+                for (offset, value) in values.enumerated() {
+                    out[batchStart + offset] = value
+                }
+            }
         }
         return out
     }

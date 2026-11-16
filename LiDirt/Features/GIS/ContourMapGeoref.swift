@@ -35,6 +35,20 @@ enum ContourMapGeoref {
         )
     }
 
+    /// Inverse of `coordinate` — WGS84 to local meters east / north of GPS origin.
+    static func localMeters(
+        coordinate: CLLocationCoordinate2D,
+        origin: CLLocationCoordinate2D
+    ) -> (x: Double, z: Double) {
+        let metersPerDegLat = 111_320.0
+        let latRad = origin.latitude * .pi / 180.0
+        let metersPerDegLon = max(metersPerDegLat * cos(latRad), 1e-6)
+        return (
+            x: (coordinate.longitude - origin.longitude) * metersPerDegLon,
+            z: (coordinate.latitude - origin.latitude) * metersPerDegLat
+        )
+    }
+
     static func polylines(
         heightmap: HeightmapResult,
         origin: CLLocationCoordinate2D,
@@ -47,16 +61,104 @@ enum ContourMapGeoref {
             intervalM: intervalM,
             maxLevels: maxLevels
         )
-        return segs.enumerated().map { index, seg in
-            ContourPolyline(
-                id: "\(index)-\(seg.elevationM)",
-                coordinates: [
-                    coordinate(localXMetersEast: seg.ax, localZMetersNorth: seg.az, origin: origin),
-                    coordinate(localXMetersEast: seg.bx, localZMetersNorth: seg.bz, origin: origin)
-                ],
-                elevationM: seg.elevationM
+        // Chain cell-edge segments into longer polylines so MapKit gets dozens of
+        // overlays instead of thousands of 2-point lines (major scan→map lag source).
+        return chain(segments: segs, origin: origin)
+    }
+
+    /// Stitch collinear-adjacent marching-squares segments per elevation level.
+    static func chain(
+        segments: [LocalContourSegment],
+        origin: CLLocationCoordinate2D,
+        joinEpsilonM: Double = 1e-4
+    ) -> [ContourPolyline] {
+        guard !segments.isEmpty else { return [] }
+        var byLevel: [Double: [LocalContourSegment]] = [:]
+        for seg in segments {
+            byLevel[seg.elevationM, default: []].append(seg)
+        }
+
+        var out: [ContourPolyline] = []
+        out.reserveCapacity(byLevel.count)
+        for (level, levelSegs) in byLevel.sorted(by: { $0.key < $1.key }) {
+            let chains = stitch(levelSegs, epsilon: joinEpsilonM)
+            for (chainIndex, points) in chains.enumerated() where points.count >= 2 {
+                let coords = points.map {
+                    coordinate(localXMetersEast: $0.x, localZMetersNorth: $0.z, origin: origin)
+                }
+                out.append(ContourPolyline(
+                    id: String(format: "%.6f-%d-%d", level, chainIndex, coords.count),
+                    coordinates: coords,
+                    elevationM: level
+                ))
+            }
+        }
+        return out
+    }
+
+    private struct LocalPoint: Hashable {
+        var x: Double
+        var z: Double
+
+        init(_ x: Double, _ z: Double) {
+            self.x = x
+            self.z = z
+        }
+
+        func bucket(_ epsilon: Double) -> LocalPoint {
+            LocalPoint(
+                (x / epsilon).rounded() * epsilon,
+                (z / epsilon).rounded() * epsilon
             )
         }
+    }
+
+    private static func stitch(
+        _ segments: [LocalContourSegment],
+        epsilon: Double
+    ) -> [[LocalPoint]] {
+        var adjacency: [LocalPoint: [LocalPoint]] = [:]
+        adjacency.reserveCapacity(segments.count * 2)
+        for seg in segments {
+            let a = LocalPoint(seg.ax, seg.az).bucket(epsilon)
+            let b = LocalPoint(seg.bx, seg.bz).bucket(epsilon)
+            guard a != b else { continue }
+            adjacency[a, default: []].append(b)
+            adjacency[b, default: []].append(a)
+        }
+
+        var visited = Set<LocalPoint>()
+        var chains: [[LocalPoint]] = []
+
+        func walk(from start: LocalPoint, excluding: LocalPoint?) -> [LocalPoint] {
+            var path: [LocalPoint] = [start]
+            var current = start
+            var previous = excluding
+            while true {
+                visited.insert(current)
+                let neighbors = adjacency[current] ?? []
+                let next = neighbors.first { candidate in
+                    if let previous, candidate == previous { return false }
+                    return !visited.contains(candidate) || candidate == start
+                }
+                guard let next, next != start else { break }
+                if visited.contains(next) { break }
+                path.append(next)
+                previous = current
+                current = next
+            }
+            return path
+        }
+
+        // Prefer starting at endpoints (degree 1) so open contours stay open.
+        let endpoints = adjacency.keys.filter { (adjacency[$0]?.count ?? 0) == 1 }
+        for start in endpoints where !visited.contains(start) {
+            chains.append(walk(from: start, excluding: nil))
+        }
+        for start in adjacency.keys where !visited.contains(start) {
+            chains.append(walk(from: start, excluding: nil))
+        }
+        return chains
     }
 
     /// Bounding region that fits the DEM footprint around the GPS origin.

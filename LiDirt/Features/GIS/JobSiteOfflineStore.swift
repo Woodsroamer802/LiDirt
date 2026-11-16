@@ -85,19 +85,36 @@ final class JobSiteOfflineStore: Sendable {
         contourPolylines: [ContourMapGeoref.ContourPolyline],
         contourIntervalInches: Double,
         surfaceMode: ContourSurfaceMode,
+        heightmap: HeightmapResult? = nil,
+        origin: CLLocationCoordinate2D? = nil,
         progress: ((String) -> Void)? = nil
     ) async throws -> JobSiteOfflineMeta {
         guard bounds.isValid else { throw JobSiteOfflineError.noJobSite }
 
-        progress?("Capturing high-res Job Site snapshot…")
-        let size = Self.snapshotPixelSize(for: bounds)
-        let snapshot = try await captureTopoSnapshot(bounds: bounds, size: size)
-        progress?("Drawing contours on snapshot…")
-        let composed = Self.compose(
-            snapshot: snapshot,
+        let composed: UIImage
+        if let heightmap, let origin,
+           let rendered = FusedSiteMapRenderer.render(
+            heightmap: heightmap,
+            origin: origin,
             bounds: bounds,
-            contours: contourPolylines
-        )
+            intervalInches: contourIntervalInches,
+            drawContours: true,
+            longEdge: Self.longEdgePixels
+           ),
+           let fusedImage = rendered.image {
+            progress?("Rendering fused 3DEP + LiDAR map…")
+            composed = fusedImage
+        } else {
+            progress?("Capturing high-res Job Site snapshot…")
+            let size = Self.snapshotPixelSize(for: bounds)
+            let snapshot = try await captureTopoSnapshot(bounds: bounds, size: size)
+            progress?("Drawing contours on snapshot…")
+            composed = Self.compose(
+                snapshot: snapshot,
+                bounds: bounds,
+                contours: contourPolylines
+            )
+        }
         guard let png = composed.pngData() else { throw JobSiteOfflineError.writeFailed }
 
         let dir = packageDirectory(projectId: projectId)

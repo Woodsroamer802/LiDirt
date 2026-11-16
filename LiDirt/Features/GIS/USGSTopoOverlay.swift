@@ -4,26 +4,37 @@ import UIKit
 /// USGS National Map topographic basemap tiles (public domain / government).
 ///
 /// National Map topo typically tops out at z16. Past that we still accept MapKit
-/// tile requests and **upscale the parent z16 tile** so zooming into a pad after
-/// a scan keeps USGS topo instead of blanking or falling through to Apple maps.
+/// tile requests and **upscale the parent z16 tile** (with caching) so mid-zoom
+/// stays on topo. For pad-scale Job Sites (~100–200 sq ft), the map switches to
+/// sharp aerial underlay instead — USGS print resolution cannot cover that scale.
 enum USGSTopoOverlay {
     static let pathTemplate =
         "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}"
 
     /// Native USGS topo max zoom (beyond this we synthesize by upscaling).
     static let nativeMaximumZ = 16
-    /// Allow MapKit to request deeper zooms so pad-scale scans stay on topo.
+    /// Allow MapKit to request deeper zooms so pad-scale scans stay covered.
     static let displayMaximumZ = 20
     static let tilePixelSize = 256
 
+    /// Latitude span below this ≈ beyond useful USGS print detail → use aerial close-up.
+    /// ~0.00055° ≈ 200 ft N–S; smaller Job Sites (e.g. ~140 sq ft) switch to imagery.
+    static let closeUpLatitudeDeltaThreshold = 0.00055
+
     static func makeOverlay() -> MKTileOverlay {
         USGSTopoTileOverlay()
+    }
+
+    static func prefersCloseUpImagery(for region: MKCoordinateRegion) -> Bool {
+        region.span.latitudeDelta < closeUpLatitudeDeltaThreshold
+            || region.span.longitudeDelta < closeUpLatitudeDeltaThreshold
     }
 }
 
 /// Tile overlay that replaces Apple map content and fills z>16 by cropping/scaling z16 parents.
 final class USGSTopoTileOverlay: MKTileOverlay {
     private let session: URLSession
+    private let parentCache = NSCache<NSString, NSData>()
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -35,6 +46,7 @@ final class USGSTopoTileOverlay: MKTileOverlay {
             width: USGSTopoOverlay.tilePixelSize,
             height: USGSTopoOverlay.tilePixelSize
         )
+        parentCache.countLimit = 96
     }
 
     override func url(forTilePath path: MKTileOverlayPath) -> URL {
@@ -55,7 +67,17 @@ final class USGSTopoTileOverlay: MKTileOverlay {
 
     override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
         let requestURL = url(forTilePath: path)
-        let task = session.dataTask(with: requestURL) { data, response, error in
+        let cacheKey = requestURL.absoluteString as NSString
+
+        if path.z > USGSTopoOverlay.nativeMaximumZ,
+           let cached = parentCache.object(forKey: cacheKey) as Data?,
+           let parent = UIImage(data: cached),
+           let upscaled = Self.upscaleTile(parent: parent, path: path) {
+            result(upscaled, nil)
+            return
+        }
+
+        let task = session.dataTask(with: requestURL) { [weak self] data, response, error in
             if let error {
                 result(nil, error)
                 return
@@ -68,6 +90,7 @@ final class USGSTopoTileOverlay: MKTileOverlay {
                 result(data, nil)
                 return
             }
+            self?.parentCache.setObject(data as NSData, forKey: cacheKey)
             guard let parent = UIImage(data: data),
                   let upscaled = Self.upscaleTile(parent: parent, path: path) else {
                 result(nil, URLError(.cannotDecodeContentData))

@@ -55,6 +55,26 @@ final class ContourMapGeorefTests: XCTestCase {
         let origin = CLLocationCoordinate2D(latitude: 40, longitude: -100)
         let lines = ContourMapGeoref.polylines(heightmap: heightmap, origin: origin, intervalInches: 1)
         XCTAssertFalse(lines.isEmpty)
-        XCTAssertEqual(lines[0].coordinates.count, 2)
+        XCTAssertGreaterThanOrEqual(lines[0].coordinates.count, 2)
+    }
+
+    func testChainReducesSegmentCount() throws {
+        var cells: [DEMGridKey: DEMCellStats] = [:]
+        for iz in 0..<6 {
+            for ix in 0..<6 {
+                var stats = DEMCellStats()
+                for _ in 0..<4 { stats.addSample(Double(ix) * 0.05) }
+                cells[DEMGridKey(ix: ix, iz: iz)] = stats
+            }
+        }
+        let heightmap = try XCTUnwrap(
+            DEMBuilder.buildHeightmap(cells: cells, cellSizeM: 0.05, minSamples: 3, fillOneCellGaps: false)
+        )
+        let segs = ContourPreview.localSegments(heightmap: heightmap, intervalM: 0.0254)
+        let origin = CLLocationCoordinate2D(latitude: 40, longitude: -100)
+        let chained = ContourMapGeoref.chain(segments: segs, origin: origin)
+        XCTAssertFalse(chained.isEmpty)
+        XCTAssertLessThan(chained.count, segs.count)
     }
 }
+

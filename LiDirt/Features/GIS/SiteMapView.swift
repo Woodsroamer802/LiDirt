@@ -151,7 +151,7 @@ struct SiteMapView: View {
                     .foregroundStyle(LiDirtColors.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if viewModel.isFusing || viewModel.isSavingOffline || viewModel.isGeocodingAddress {
+                if viewModel.isFusing || viewModel.isSavingOffline || viewModel.isGeocodingAddress || viewModel.isBuildingFusedMap {
                     ProgressView()
                         .tint(LiDirtColors.constructionYellow)
                 }
@@ -244,8 +244,18 @@ private struct JobSiteOptionsSheet: View {
         NavigationStack {
             Form {
                 Section("Layers") {
-                    Toggle("USGS topo", isOn: $viewModel.showTopo)
-                    Toggle("Fused contours", isOn: Binding(
+                    Toggle("Fused surface map", isOn: Binding(
+                        get: { viewModel.showFusedSurfaceMap },
+                        set: { newValue in
+                            viewModel.showFusedSurfaceMap = newValue
+                            viewModel.rebuildContours()
+                        }
+                    ))
+                    Text("New map from USGS 3DEP + LiDAR + GPS (hillshade + contours). Sharp at pad scale — not USGS print tiles.")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                    Toggle("USGS topo tiles", isOn: $viewModel.showTopo)
+                    Toggle("Vector contour lines", isOn: Binding(
                         get: { viewModel.showContours },
                         set: { newValue in
                             viewModel.showContours = newValue
@@ -476,6 +486,7 @@ struct SiteMapRepresentable: UIViewRepresentable {
         var viewModel: SiteMapViewModel
         weak var mapView: MKMapView?
         private var topoOverlay: MKTileOverlay?
+        private var fusedOverlay: FusedMapGroundOverlay?
         private var lastContourIDs: [String] = []
         private var lastJobSite: JobSiteBounds?
         private var showingJobSite = false
@@ -505,7 +516,9 @@ struct SiteMapRepresentable: UIViewRepresentable {
         func applyOverlays() {
             guard let mapView else { return }
 
-            if viewModel.showTopo {
+            // Prefer the custom fused surface map over USGS print tiles for the Job Site.
+            let hasFused = viewModel.showFusedSurfaceMap && viewModel.fusedMapImage != nil
+            if viewModel.showTopo, !hasFused {
                 if topoOverlay == nil {
                     let overlay = USGSTopoOverlay.makeOverlay()
                     topoOverlay = overlay
@@ -514,6 +527,25 @@ struct SiteMapRepresentable: UIViewRepresentable {
             } else if let topoOverlay {
                 mapView.removeOverlay(topoOverlay)
                 self.topoOverlay = nil
+            }
+
+            if hasFused,
+               let image = viewModel.fusedMapImage,
+               let bounds = viewModel.fusedMapBounds {
+                let needsReplace = fusedOverlay == nil
+                    || fusedOverlay?.siteBounds != bounds
+                    || fusedOverlay?.image !== image
+                if needsReplace {
+                    if let fusedOverlay {
+                        mapView.removeOverlay(fusedOverlay)
+                    }
+                    let overlay = FusedMapGroundOverlay(image: image, bounds: bounds)
+                    fusedOverlay = overlay
+                    mapView.addOverlay(overlay, level: .aboveRoads)
+                }
+            } else if let fusedOverlay {
+                mapView.removeOverlay(fusedOverlay)
+                self.fusedOverlay = nil
             }
 
             let ids = viewModel.contourPolylines.map(\.id)
@@ -549,6 +581,9 @@ struct SiteMapRepresentable: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let fused = overlay as? FusedMapGroundOverlay {
+                return FusedMapOverlayRenderer(overlay: fused)
+            }
             if let tile = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tile)
             }
