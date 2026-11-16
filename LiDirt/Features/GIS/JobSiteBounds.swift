@@ -2,6 +2,23 @@ import Foundation
 import CoreLocation
 import MapKit
 
+/// Shared Job Site outline / download size defaults (feet on a side for a square).
+enum JobSiteDefaults {
+    /// ~10×10 ft — about 100 sq ft pad.
+    static let minSideFeet: Double = 10
+    static let maxSideFeet: Double = 1_000
+    /// Sensible starting outline; user can shrink before download.
+    static let defaultSideFeet: Double = 100
+
+    static func clampSideFeet(_ feet: Double) -> Double {
+        min(max(feet, minSideFeet), maxSideFeet)
+    }
+
+    static func halfSideMeters(sideFeet: Double) -> Double {
+        (clampSideFeet(sideFeet) * 0.3048) / 2.0
+    }
+}
+
 /// Axis-aligned geographic rectangle defining the on-phone Job Site focus area.
 struct JobSiteBounds: Codable, Equatable, Sendable, Hashable {
     var north: Double
@@ -19,6 +36,19 @@ struct JobSiteBounds: Codable, Equatable, Sendable, Hashable {
     var latitudeDelta: Double { max(north - south, 1e-6) }
     var longitudeDelta: Double { max(east - west, 1e-6) }
 
+    /// Approximate north–south side length in feet.
+    var sideFeetNS: Double { latitudeDelta * 364_000 }
+
+    /// Approximate east–west side length in feet (accounts for latitude).
+    var sideFeetEW: Double {
+        longitudeDelta * 364_000 * cos(center.latitude * .pi / 180)
+    }
+
+    /// Geometric mean of N–S / E–W sides — used for the size slider.
+    var approxSideFeet: Double {
+        sqrt(max(sideFeetNS, 1) * max(sideFeetEW, 1))
+    }
+
     var region: MKCoordinateRegion {
         MKCoordinateRegion(
             center: center,
@@ -27,6 +57,17 @@ struct JobSiteBounds: Codable, Equatable, Sendable, Hashable {
                 longitudeDelta: longitudeDelta * 1.15
             )
         )
+    }
+
+    /// MapKit camera fence for locking project view to this Job Site.
+    var mapRect: MKMapRect {
+        let nw = MKMapPoint(CLLocationCoordinate2D(latitude: north, longitude: west))
+        let se = MKMapPoint(CLLocationCoordinate2D(latitude: south, longitude: east))
+        let minX = min(nw.x, se.x)
+        let minY = min(nw.y, se.y)
+        let maxX = max(nw.x, se.x)
+        let maxY = max(nw.y, se.y)
+        return MKMapRect(x: minX, y: minY, width: max(maxX - minX, 1), height: max(maxY - minY, 1))
     }
 
     var cornerCoordinates: [CLLocationCoordinate2D] {
@@ -80,6 +121,15 @@ struct JobSiteBounds: Codable, Equatable, Sendable, Hashable {
             east: center.longitude + dLon,
             west: center.longitude - dLon
         )
+    }
+
+    static func square(center: CLLocationCoordinate2D, sideFeet: Double) -> JobSiteBounds {
+        square(center: center, halfSideMeters: JobSiteDefaults.halfSideMeters(sideFeet: sideFeet))
+    }
+
+    /// Keep center; resize to a square of the given side length in feet.
+    func resizedToSideFeet(_ sideFeet: Double) -> JobSiteBounds {
+        JobSiteBounds.square(center: center, sideFeet: sideFeet)
     }
 
     func expanded(meters: Double) -> JobSiteBounds {
