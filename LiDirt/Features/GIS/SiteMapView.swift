@@ -7,30 +7,37 @@ struct SiteMapView: View {
     @State private var intervalText: String
     @State private var showPrintSheet = false
     var onIntervalChange: ((Double) -> Void)?
-
     var onSurfaceModeChange: ((ContourSurfaceMode) -> Void)?
+    var onJobSiteChange: ((JobSiteBounds?) -> Void)?
 
     init(
         projectName: String = "Site",
+        projectId: UUID? = nil,
         heightmap: HeightmapResult? = nil,
         orientation: ScanOrientationSnapshot = .unavailable,
         contourIntervalInches: Double = ContourPreview.defaultIntervalInches,
         contourSurfaceMode: ContourSurfaceMode = .smoothedGround,
+        jobSite: JobSiteBounds? = nil,
         onIntervalChange: ((Double) -> Void)? = nil,
-        onSurfaceModeChange: ((ContourSurfaceMode) -> Void)? = nil
+        onSurfaceModeChange: ((ContourSurfaceMode) -> Void)? = nil,
+        onJobSiteChange: ((JobSiteBounds?) -> Void)? = nil
     ) {
         let vm = SiteMapViewModel(
             projectName: projectName,
+            projectId: projectId,
             heightmap: heightmap,
             orientation: orientation,
             contourIntervalInches: contourIntervalInches,
-            contourSurfaceMode: contourSurfaceMode
+            contourSurfaceMode: contourSurfaceMode,
+            jobSite: jobSite
         )
         vm.onSurfaceModeChange = onSurfaceModeChange
+        vm.onJobSiteChange = onJobSiteChange
         _viewModel = StateObject(wrappedValue: vm)
         _intervalText = State(initialValue: Self.formatInterval(contourIntervalInches))
         self.onIntervalChange = onIntervalChange
         self.onSurfaceModeChange = onSurfaceModeChange
+        self.onJobSiteChange = onJobSiteChange
     }
 
     var body: some View {
@@ -60,6 +67,15 @@ struct SiteMapView: View {
         .sheet(isPresented: $showPrintSheet) {
             PrintMapSheet(viewModel: viewModel)
         }
+        .sheet(isPresented: $viewModel.showOfflineViewer) {
+            if let image = viewModel.offlineImage {
+                OfflineJobSiteView(
+                    projectName: viewModel.projectName,
+                    image: image,
+                    meta: viewModel.offlineMeta
+                )
+            }
+        }
         .sheet(item: Binding(
             get: { viewModel.sharePDFURL.map(IdentifiableURL.init) },
             set: { viewModel.sharePDFURL = $0?.url }
@@ -73,6 +89,14 @@ struct SiteMapView: View {
             Button("OK", role: .cancel) { viewModel.printError = nil }
         } message: {
             Text(viewModel.printError ?? "")
+        }
+        .alert("Offline save", isPresented: Binding(
+            get: { viewModel.offlineError != nil },
+            set: { if !$0 { viewModel.offlineError = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.offlineError = nil }
+        } message: {
+            Text(viewModel.offlineError ?? "")
         }
         .onAppear { viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
@@ -96,11 +120,14 @@ struct SiteMapView: View {
                         viewModel.rebuildContours()
                     }
                 ))
-                if viewModel.isFusing {
+                toggleChip("Job Site", isOn: $viewModel.showJobSiteOverlay)
+                if viewModel.isFusing || viewModel.isSavingOffline {
                     ProgressView()
                         .tint(LiDirtColors.constructionYellow)
                 }
             }
+
+            jobSiteControls
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Ground detail")
@@ -146,6 +173,12 @@ struct SiteMapView: View {
             .padding(10)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
 
+            if let progress = viewModel.offlineProgress {
+                Text(progress)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.constructionYellow)
+            }
+
             if let note = viewModel.contourNote {
                 Text(note)
                     .font(LiDirtTypography.caption)
@@ -155,6 +188,51 @@ struct SiteMapView: View {
                     .background(LiDirtColors.constructionYellow, in: RoundedRectangle(cornerRadius: 10))
             }
         }
+    }
+
+    private var jobSiteControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Job Site")
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textSecondary)
+            Text("Draw a rectangle over the work area for phone zoom. Save a high-res snapshot for offline pan / zoom / rotate.")
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    jobButton("From view") { viewModel.setJobSiteFromCurrentView() }
+                    jobButton("From scan") { viewModel.setJobSiteFromScan() }
+                    jobButton("~260 ft square") { viewModel.setSquareJobSite(halfSideMeters: 40) }
+                    jobButton("Zoom") { viewModel.zoomToJobSite() }
+                        .disabled(viewModel.jobSite == nil)
+                    jobButton("Clear", destructive: true) { viewModel.clearJobSite() }
+                        .disabled(viewModel.jobSite == nil)
+                }
+            }
+
+            HStack(spacing: 8) {
+                jobButton(viewModel.hasOfflinePackage ? "Update offline" : "Save offline") {
+                    viewModel.saveJobSiteOffline()
+                }
+                .disabled(viewModel.jobSite == nil || viewModel.isSavingOffline || viewModel.projectId == nil)
+
+                jobButton("Open offline") { viewModel.openOfflineJobSite() }
+                    .disabled(!viewModel.hasOfflinePackage)
+
+                if viewModel.hasOfflinePackage {
+                    jobButton("Delete offline", destructive: true) { viewModel.deleteOfflineJobSite() }
+                }
+            }
+
+            if viewModel.hasOfflinePackage, let meta = viewModel.offlineMeta {
+                Text("Offline ready · \(meta.imageWidthPx)×\(meta.imageHeightPx)px · \(meta.savedAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.constructionYellow)
+            }
+        }
+        .padding(10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var footer: some View {
@@ -194,6 +272,24 @@ struct SiteMapView: View {
                 )
                 .overlay(
                     Capsule().stroke(LiDirtColors.constructionYellow, lineWidth: 1)
+                )
+        }
+    }
+
+    private func jobButton(
+        _ title: String,
+        destructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(destructive ? LiDirtColors.danger : LiDirtColors.gunmetalDeep)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(destructive ? LiDirtColors.gunmetalElevated : LiDirtColors.constructionYellow)
                 )
         }
     }
@@ -286,7 +382,7 @@ struct SiteMapRepresentable: UIViewRepresentable {
         context.coordinator.applyOverlays()
         if abs(mapView.region.center.latitude - viewModel.region.center.latitude) > 1e-5
             || abs(mapView.region.span.latitudeDelta - viewModel.region.span.latitudeDelta) > 1e-6 {
-            mapView.setRegion(viewModel.region, animated: false)
+            mapView.setRegion(viewModel.region, animated: true)
         }
     }
 
@@ -295,6 +391,8 @@ struct SiteMapRepresentable: UIViewRepresentable {
         weak var mapView: MKMapView?
         private var topoOverlay: MKTileOverlay?
         private var lastContourIDs: [String] = []
+        private var lastJobSite: JobSiteBounds?
+        private var showingJobSite = false
 
         init(viewModel: SiteMapViewModel) {
             self.viewModel = viewModel
@@ -327,11 +425,37 @@ struct SiteMapRepresentable: UIViewRepresentable {
                     mapView.addOverlay(polyline, level: .aboveLabels)
                 }
             }
+
+            let job = viewModel.showJobSiteOverlay ? viewModel.jobSite : nil
+            if job != lastJobSite || (job != nil) != showingJobSite {
+                for overlay in mapView.overlays {
+                    if let polygon = overlay as? MKPolygon, polygon.title == "Job Site" {
+                        mapView.removeOverlay(polygon)
+                    }
+                }
+                lastJobSite = job
+                showingJobSite = job != nil
+                if let job {
+                    var coords = job.cornerCoordinates
+                    let polygon = MKPolygon(coordinates: &coords, count: coords.count)
+                    polygon.title = "Job Site"
+                    mapView.addOverlay(polygon, level: .aboveLabels)
+                }
+            }
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let tile = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tile)
+            }
+            if let polygon = overlay as? MKPolygon, polygon.title == "Job Site" {
+                let renderer = MKPolygonRenderer(polygon: polygon)
+                let yellow = UIColor(red: 0.96, green: 0.78, blue: 0.12, alpha: 1)
+                renderer.strokeColor = yellow
+                renderer.fillColor = yellow.withAlphaComponent(0.12)
+                renderer.lineWidth = 2.5
+                renderer.lineDashPattern = [8, 4]
+                return renderer
             }
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)

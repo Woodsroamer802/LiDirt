@@ -122,6 +122,8 @@ From a project (**Fused topo / LiDAR map**) or scan review:
 - **Phone LiDAR DEM** blended in for pad-scale detail (vertical bias matches 3DEP; GPS/compass place)
 - **Typed contour interval** (inches) on the map / review / Settings
 - **Ground detail toggle** — **As-scanned** (keep ruts/gravel texture) or **Smoothed ground** (ignore fine noise for equipment planning contours)
+- **Job Site** rectangle — set from current view / scan footprint / square; zoom for phone focus
+- **Offline Job Site** — high-res snapshot (map + contours) you can pan, pinch-zoom, and rotate without live tiles
 - **Print PDF** fitted to:
   - ARCH D — 24×36 in (landscape)
   - Half sheet — 11×17 in

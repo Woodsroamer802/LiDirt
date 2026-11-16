@@ -44,12 +44,19 @@ struct ProjectDetailView: View {
             NavigationStack {
                 SiteMapView(
                     projectName: project?.name ?? "Site",
+                    projectId: projectId,
                     heightmap: siteMapHeightmap,
                     orientation: siteMapOrientation,
                     contourIntervalInches: environment.preferredContourIntervalInches,
                     contourSurfaceMode: environment.contourSurfaceMode,
+                    jobSite: project?.jobSite,
                     onIntervalChange: { environment.savePreferredContourIntervalInches($0) },
-                    onSurfaceModeChange: { environment.saveContourSurfaceMode($0) }
+                    onSurfaceModeChange: { environment.saveContourSurfaceMode($0) },
+                    onJobSiteChange: { bounds in
+                        guard var updated = environment.projectStore.project(id: projectId) else { return }
+                        updated.jobSite = bounds
+                        environment.projectStore.update(updated)
+                    }
                 )
             }
         }
@@ -168,7 +175,7 @@ struct ProjectDetailView: View {
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                    Text("Builds a 3DEP + LiDAR fused contour map. Print ARCH D 24×36 or half sheets 11×17 / 12×18.")
+                    Text("Fused 3DEP + LiDAR map with Job Site zoom rectangle and offline high-res snapshot. Print ARCH D / half sheets.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
 
@@ -276,6 +283,7 @@ struct ProjectDetailView: View {
             environment.localScanStore.deletePackage(scanId: scan.id)
             environment.uploadQueue.remove(scan.id)
         }
+        JobSiteOfflineStore().deletePackage(projectId: projectId)
         dismiss()
     }
 

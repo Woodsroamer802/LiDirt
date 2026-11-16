@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct ScanReviewView: View {
+    @EnvironmentObject private var environment: AppEnvironment
     let scanId: UUID
     let projectId: UUID
     let heightmap: HeightmapResult?
@@ -54,10 +55,12 @@ struct ScanReviewView: View {
             NavigationStack {
                 SiteMapView(
                     projectName: projectName,
+                    projectId: projectId,
                     heightmap: heightmap,
                     orientation: orientation,
                     contourIntervalInches: activeIntervalInches,
                     contourSurfaceMode: surfaceMode,
+                    jobSite: environment.projectStore.project(id: projectId)?.jobSite,
                     onIntervalChange: { value in
                         activeIntervalInches = value
                         intervalText = String(format: "%g", value)
@@ -66,6 +69,11 @@ struct ScanReviewView: View {
                     onSurfaceModeChange: { mode in
                         surfaceMode = mode
                         onContourSurfaceModeChange?(mode)
+                    },
+                    onJobSiteChange: { bounds in
+                        guard var updated = environment.projectStore.project(id: projectId) else { return }
+                        updated.jobSite = bounds
+                        environment.projectStore.update(updated)
                     }
                 )
             }

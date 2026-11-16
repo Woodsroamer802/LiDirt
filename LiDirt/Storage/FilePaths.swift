@@ -7,6 +7,7 @@ struct FilePaths: Sendable {
     let projectsDirectory: URL
     let scansDirectory: URL
     let uploadsQueueDirectory: URL
+    let jobSitesDirectory: URL
 
     init(fileManager: FileManager = .default) {
         let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -15,8 +16,9 @@ struct FilePaths: Sendable {
         projectsDirectory = base.appendingPathComponent("Projects", isDirectory: true)
         scansDirectory = base.appendingPathComponent("Scans", isDirectory: true)
         uploadsQueueDirectory = base.appendingPathComponent("UploadsQueue", isDirectory: true)
+        jobSitesDirectory = base.appendingPathComponent("JobSites", isDirectory: true)
 
-        for url in [applicationSupport, projectsDirectory, scansDirectory, uploadsQueueDirectory] {
+        for url in [applicationSupport, projectsDirectory, scansDirectory, uploadsQueueDirectory, jobSitesDirectory] {
             try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
@@ -27,5 +29,9 @@ struct FilePaths: Sendable {
 
     func queuedPackageDirectory(scanId: UUID) -> URL {
         uploadsQueueDirectory.appendingPathComponent("scan-\(scanId.uuidString)", isDirectory: true)
+    }
+
+    func jobSiteDirectory(projectId: UUID) -> URL {
+        jobSitesDirectory.appendingPathComponent("project-\(projectId.uuidString)", isDirectory: true)
     }
 }

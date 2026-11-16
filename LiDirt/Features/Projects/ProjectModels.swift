@@ -7,6 +7,8 @@ struct Project: Identifiable, Codable, Hashable, Sendable {
     var createdAt: Date
     var updatedAt: Date
     var scanSummaries: [ScanSummary]
+    /// Phone focus rectangle on the fused map; used for zoom and offline snapshot.
+    var jobSite: JobSiteBounds?
 
     init(
         id: UUID = UUID(),
@@ -14,7 +16,8 @@ struct Project: Identifiable, Codable, Hashable, Sendable {
         address: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        scanSummaries: [ScanSummary] = []
+        scanSummaries: [ScanSummary] = [],
+        jobSite: JobSiteBounds? = nil
     ) {
         self.id = id
         self.name = name
@@ -22,6 +25,7 @@ struct Project: Identifiable, Codable, Hashable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.scanSummaries = scanSummaries
+        self.jobSite = jobSite
     }
 }
 
