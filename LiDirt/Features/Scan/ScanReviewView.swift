@@ -9,6 +9,7 @@ struct ScanReviewView: View {
     let durationSec: TimeInterval
     let controlPins: [ControlPin]
     let preferredContourIntervalInches: Double
+    var projectName: String = "Scan"
     var orientation: ScanOrientationSnapshot = .unavailable
     var onContourIntervalChange: ((Double) -> Void)?
 
@@ -48,6 +49,7 @@ struct ScanReviewView: View {
         .sheet(isPresented: $showTopoMap) {
             NavigationStack {
                 SiteMapView(
+                    projectName: projectName,
                     heightmap: heightmap,
                     orientation: orientation,
                     contourIntervalInches: activeIntervalInches,
@@ -177,13 +179,13 @@ struct ScanReviewView: View {
                     applyInterval()
                     showTopoMap = true
                 } label: {
-                    Label("Show on USGS topo map", systemImage: "map")
+                    Label("Open fused topo / LiDAR map", systemImage: "map")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LiDirtSecondaryButtonStyle())
             }
 
-            Text("Type a contour interval (inches). Contours are display-only on the smoothed DEM. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
+            Text("Type a contour interval (inches). Fused map uses USGS 3DEP as foundation plus this LiDAR DEM. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
         }

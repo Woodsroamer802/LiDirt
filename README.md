@@ -113,15 +113,21 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 - `Features/Projects` — local project list/detail
 - `LiDirtTests` — DEMBuilder, QualityScorer, MetadataCodec
 
-## Topo / contour map
+## Fused topo / LiDAR map + print
 
-From a project (**Topo / contour map**) or scan review (**Show on USGS topo map**):
+From a project (**Fused topo / LiDAR map**) or scan review:
 
-- **USGS topo** tile basemap (public National Map)
-- **LiDAR contours** from your averaged DEM, placed with phone GPS/compass (when the scan has a fix)
-- **Typed contour interval** (inches) — Settings default, editable on the map and on scan review
+- **USGS topo** tiles for visual context
+- **USGS 3DEP** elevation as the foundation surface
+- **Phone LiDAR DEM** blended in for pad-scale detail (vertical bias matches 3DEP; GPS/compass place)
+- **Typed contour interval** (inches) on the map / review / Settings
+- **Print PDF** fitted to:
+  - ARCH D — 24×36 in (landscape)
+  - Half sheet — 11×17 in
+  - Half sheet — 12×18 in  
+  Title block, scale bar, north arrow, index contours
 
-Display / planning aid only — not a certified survey or absolute elevation.
+Planning aid for heavy equipment — not a certified survey.
 
 ## Out of scope (still deferred)
 

@@ -2,8 +2,8 @@ import Foundation
 
 enum GISDisclaimer {
     static let topoContours =
-        "USGS topo tiles are public basemap context. LiDAR contours are from your averaged phone scan, placed with phone GPS/compass (meters-class). Display / planning aid only — not a certified survey or absolute elevation."
+        "USGS topo tiles provide visual context. Elevations fuse USGS 3DEP as the foundation with your phone LiDAR DEM for pad detail (GPS/compass place, meters-class). Planning aid for heavy equipment — not a certified survey or absolute elevation."
 
     static let needScanGPS =
-        "Scan with Location on so contours can sit on the topo map. Without a GPS fix, the map still shows USGS topo."
+        "Scan with Location on so LiDAR can be placed and fused onto the topo/3DEP foundation. Without a GPS fix, the map still shows USGS topo."
 }

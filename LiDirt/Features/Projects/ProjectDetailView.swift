@@ -43,6 +43,7 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showSiteMap) {
             NavigationStack {
                 SiteMapView(
+                    projectName: project?.name ?? "Site",
                     heightmap: siteMapHeightmap,
                     orientation: siteMapOrientation,
                     contourIntervalInches: environment.preferredContourIntervalInches,
@@ -85,6 +86,7 @@ struct ProjectDetailView: View {
                 durationSec: payload.durationSec,
                 controlPins: payload.controlPins,
                 preferredContourIntervalInches: environment.preferredContourIntervalInches,
+                projectName: project?.name ?? "Scan",
                 orientation: payload.orientation,
                 onContourIntervalChange: { environment.savePreferredContourIntervalInches($0) },
                 onUpload: { beginUpload(payload, force: false) },
@@ -157,12 +159,12 @@ struct ProjectDetailView: View {
                     Button {
                         openContourMap(for: project)
                     } label: {
-                        Label("Topo / contour map", systemImage: "map")
+                        Label("Fused topo / LiDAR map", systemImage: "map")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                    Text("Overlays LiDAR contours on USGS topo. Type the contour interval on the map.")
+                    Text("Builds a 3DEP + LiDAR fused contour map. Print ARCH D 24×36 or half sheets 11×17 / 12×18.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
 
