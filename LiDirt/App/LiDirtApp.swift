@@ -22,16 +22,14 @@ private struct AppBootstrapView: View {
                     .environmentObject(environment)
             } else {
                 ZStack {
-                    LiDirtColors.gunmetal.ignoresSafeArea()
+                    LiDirtColors.constructionYellow.ignoresSafeArea()
                     VStack(spacing: 16) {
-                        Text("LiDirt")
-                            .font(LiDirtTypography.brand)
-                            .foregroundStyle(LiDirtColors.constructionYellow)
+                        BrandMark(size: 140)
                         ProgressView()
-                            .tint(LiDirtColors.constructionYellow)
+                            .tint(LiDirtColors.gunmetalDeep)
                         Text(bootstrap.status)
                             .font(LiDirtTypography.caption)
-                            .foregroundStyle(LiDirtColors.textSecondary)
+                            .foregroundStyle(LiDirtColors.gunmetalDeep)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
                     }

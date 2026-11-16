@@ -17,7 +17,8 @@ struct LoginView: View {
             VStack(spacing: 28) {
                 Spacer()
 
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
+                    BrandMark(size: 128)
                     Text("LiDirt")
                         .font(LiDirtTypography.brand)
                         .foregroundStyle(LiDirtColors.constructionYellow)
