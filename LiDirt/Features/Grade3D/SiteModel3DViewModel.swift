@@ -18,6 +18,16 @@ final class SiteModel3DViewModel: ObservableObject {
     @Published var draftMeasuredFeet: String = ""
     @Published var measureFromFlagId: UUID?
     @Published var measureToFlagId: UUID?
+    /// Per-cutout material assembly (slab on limestone, dig-only, …).
+    @Published var assembliesByCutoutId: [UUID: MaterialAssembly] = [:]
+    @Published private(set) var materialsEstimate: MaterialsEstimate = MaterialsEstimate(
+        footprintAreaSquareFeet: 0,
+        demCutCubicYards: 0,
+        demFillCubicYards: 0,
+        lineItems: [],
+        assemblyName: "No assemblies",
+        notes: []
+    )
 
     init(heightmap: HeightmapResult) {
         self.existingHeightmap = heightmap
@@ -34,7 +44,7 @@ final class SiteModel3DViewModel: ObservableObject {
 
     var volumeSummary: String {
         let v = proposedResult.volume
-        if v.cellsEdited == 0 {
+        if v.cellsEdited == 0 && materialsEstimate.lineItems.isEmpty {
             return "No cut/fill yet — place a finished-work shape."
         }
         return String(
@@ -43,6 +53,11 @@ final class SiteModel3DViewModel: ObservableObject {
             v.fillCubicYards,
             v.netCutCubicYards
         )
+    }
+
+    var selectedAssembly: MaterialAssembly? {
+        guard let id = selectedCutoutId else { return nil }
+        return assembliesByCutoutId[id]
     }
 
     func addPreset(_ preset: FinishWorkPreset) {
@@ -58,11 +73,30 @@ final class SiteModel3DViewModel: ObservableObject {
             cutout.lengthFeet = Double(draftLengthFeet) ?? cutout.lengthFeet
             cutout.depthFeet = Double(draftDepthFeet) ?? cutout.depthFeet
         }
+        // Slab assembly needs dig room for 6″ gravel + 4″ concrete.
+        if preset == .concreteSlab {
+            cutout.depthFeet = MaterialAssembly.slabOnLimestone2.totalLayerThicknessInches / 12.0
+        }
         cutouts.append(cutout)
         selectedCutoutId = cutout.id
+        assembliesByCutoutId[cutout.id] = MaterialAssembly.default(for: preset)
         syncDraft(from: cutout)
         rebuild()
-        statusMessage = "\(preset.displayName) placed — nudge or edit size, then review cut/fill."
+        statusMessage = "\(preset.displayName) placed — check Materials for dirt + gravel + concrete."
+    }
+
+    func setAssemblyForSelected(_ assembly: MaterialAssembly) {
+        guard let id = selectedCutoutId else { return }
+        assembliesByCutoutId[id] = assembly
+        if assembly.excavateForLayers {
+            let inches = assembly.totalLayerThicknessInches
+            if let idx = cutouts.firstIndex(where: { $0.id == id }), inches > 0 {
+                cutouts[idx].depthFeet = inches / 12.0
+                syncDraft(from: cutouts[idx])
+            }
+        }
+        rebuild()
+        statusMessage = "Assembly: \(assembly.displayName)"
     }
 
     func syncDraft(from cutout: GradeCutout) {
@@ -92,6 +126,7 @@ final class SiteModel3DViewModel: ObservableObject {
     func deleteSelectedCutout() {
         guard let id = selectedCutoutId else { return }
         cutouts.removeAll { $0.id == id }
+        assembliesByCutoutId[id] = nil
         selectedCutoutId = cutouts.last?.id
         rebuild()
         statusMessage = "Removed cutout."
@@ -99,6 +134,7 @@ final class SiteModel3DViewModel: ObservableObject {
 
     func clearAllCutouts() {
         cutouts.removeAll()
+        assembliesByCutoutId.removeAll()
         selectedCutoutId = nil
         rebuild()
         statusMessage = "Cleared finished-work shapes."
@@ -201,10 +237,17 @@ final class SiteModel3DViewModel: ObservableObject {
     }
 
     func rebuild() {
+        let flagged = flaggedShape.flags.count >= 3 ? [flaggedShape] : []
         proposedResult = ProposedGradeApplicator.apply(
             existing: existingHeightmap,
             cutouts: cutouts,
-            flaggedShapes: flaggedShape.flags.count >= 3 ? [flaggedShape] : []
+            flaggedShapes: flagged
+        )
+        materialsEstimate = MaterialsCalculator.estimate(
+            cutouts: cutouts,
+            assembliesByCutoutId: assembliesByCutoutId,
+            demVolume: proposedResult.volume,
+            flaggedShapes: flagged
         )
     }
 

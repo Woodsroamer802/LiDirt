@@ -113,7 +113,7 @@ struct FlagOutlinedShape: Identifiable, Codable, Equatable, Sendable {
 enum ShapeFlagGeometry {
     static func nextLabel(after existing: [ShapeFlag]) -> String {
         let letters = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-        let used = Set(existing.map(\.label.uppercased()))
+        let used = Set(existing.map { $0.label.uppercased() })
         for ch in letters {
             let s = String(ch)
             if !used.contains(s) { return s }

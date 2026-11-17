@@ -172,6 +172,17 @@ struct GradeCutout: Identifiable, Codable, Equatable, Sendable {
     var lengthM: Double { lengthFeet * 0.3048 }
     var depthM: Double { depthFeet * 0.3048 }
 
+    /// Horizontal footprint area in square feet (circle uses width as diameter).
+    var footprintAreaSquareFeet: Double {
+        switch shape {
+        case .circle:
+            let r = widthFeet * 0.5
+            return .pi * r * r
+        case .rectangle:
+            return max(widthFeet, 0) * max(lengthFeet, 0)
+        }
+    }
+
     /// Returns true if local-meter point `(x,z)` lies inside this cutout footprint.
     func contains(localX x: Double, localZ z: Double) -> Bool {
         let dx = x - centerLocalX
