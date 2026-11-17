@@ -155,7 +155,7 @@ struct SiteMapView: View {
                         viewModel.setFusedMapOnly(!viewModel.fusedMapOnly)
                     } label: {
                         Label(
-                            viewModel.fusedMapOnly ? "Show street map" : "Fused map only",
+                            viewModel.fusedMapOnly ? "Show street map" : "Contour map only",
                             systemImage: viewModel.fusedMapOnly ? "map" : "map.fill"
                         )
                     }
@@ -378,11 +378,11 @@ private struct JobSiteOptionsSheet: View {
                         Label("Open contour map", systemImage: "square.3.layers.3d.down.right")
                     }
                     .disabled(!viewModel.canOpenContourMap || viewModel.isBuildingFusedMap)
-                    Toggle("Fused map only (hide street tiles)", isOn: Binding(
+                    Toggle("Contour map only (hide street tiles)", isOn: Binding(
                         get: { viewModel.fusedMapOnly },
                         set: { viewModel.setFusedMapOnly($0) }
                     ))
-                    Toggle("Fused surface map", isOn: Binding(
+                    Toggle("Contour map", isOn: Binding(
                         get: { viewModel.showFusedSurfaceMap },
                         set: { newValue in
                             viewModel.showFusedSurfaceMap = newValue
@@ -506,7 +506,7 @@ private struct JobSiteOptionsSheet: View {
                         || viewModel.isGeocodingAddress
                         || viewModel.isSavingOffline
                     )
-                    Text("Uses the outline size above — rectangle or square. LiDAR fuses in when a scan is loaded.")
+                    Text("Uses the outline size above — rectangle or square. LiDAR blends into the contour map when a scan is loaded.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 } header: {
@@ -587,7 +587,7 @@ private struct PrintMapSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Prints a fused contour plan fitted to the sheet with title block, scale, and north arrow.")
+                    Text("Prints a contour plan fitted to the sheet with title block, scale, and north arrow.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textSecondary)
                 }
