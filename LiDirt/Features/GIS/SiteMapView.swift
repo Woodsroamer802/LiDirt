@@ -330,7 +330,7 @@ struct SiteMapView: View {
                         .foregroundStyle(LiDirtColors.textMuted)
                 }
                 if !disclaimerMinimized {
-                    Text(GISDisclaimer.topoContours)
+                    Text(GISDisclaimer.contourMap)
                         .font(.system(size: 10))
                         .foregroundStyle(LiDirtColors.textMuted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -392,8 +392,6 @@ private struct JobSiteOptionsSheet: View {
                     Text("USGS 3DEP (+ LiDAR when scanned) hillshade + contours. This is what stays sharp when you zoom into a pad — Apple street tiles will look blocky.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
-                    Toggle("USGS topo tiles", isOn: $viewModel.showTopo)
-                        .disabled(viewModel.fusedMapOnly)
                     Toggle("Vector contour lines", isOn: Binding(
                         get: { viewModel.showContours },
                         set: { newValue in
@@ -498,14 +496,14 @@ private struct JobSiteOptionsSheet: View {
                     TextField("Street address or place", text: $viewModel.addressText)
                         .textInputAutocapitalization(.words)
                     Button {
-                        viewModel.downloadTopoForAddress()
+                        viewModel.downloadContourMapForAddress()
                         dismiss()
                     } label: {
                         if viewModel.isGeocodingAddress || viewModel.isSavingOffline {
                             ProgressView()
                         } else {
                             Label(
-                                "Download \(Int(viewModel.outlineWidthFeet.rounded()))×\(Int(viewModel.outlineLengthFeet.rounded())) ft topo",
+                                "Download \(Int(viewModel.outlineWidthFeet.rounded()))×\(Int(viewModel.outlineLengthFeet.rounded())) ft Contour map",
                                 systemImage: "arrow.down.circle"
                             )
                         }
@@ -520,7 +518,7 @@ private struct JobSiteOptionsSheet: View {
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                 } header: {
-                    Text("Offline topo by address")
+                    Text("Offline Contour map by address")
                 }
 
                 Section("Offline map") {
@@ -696,7 +694,6 @@ struct SiteMapRepresentable: UIViewRepresentable {
         map.showsCompass = true
         map.showsScale = true
         map.isRotateEnabled = true
-        // Prefer topo-looking muted standard underlay only if tiles fail; overlay replaces content.
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.setRegion(viewModel.region, animated: false)
         context.coordinator.mapView = map
@@ -725,7 +722,6 @@ struct SiteMapRepresentable: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var viewModel: SiteMapViewModel
         weak var mapView: MKMapView?
-        private var topoOverlay: MKTileOverlay?
         private var fusedOverlay: FusedMapGroundOverlay?
         private var lastContourIDs: [String] = []
         private var lastBuildingIDs: [String] = []
@@ -827,18 +823,8 @@ struct SiteMapRepresentable: UIViewRepresentable {
         func applyOverlays() {
             guard let mapView else { return }
 
-            // Prefer the custom fused surface map over USGS print tiles for the Job Site.
+            // Contour / 3DEP surface overlay.
             let hasFused = viewModel.showFusedSurfaceMap && viewModel.fusedMapImage != nil
-            if viewModel.showTopo, !hasFused, !viewModel.fusedMapOnly {
-                if topoOverlay == nil {
-                    let overlay = USGSTopoOverlay.makeOverlay()
-                    topoOverlay = overlay
-                    mapView.addOverlay(overlay, level: .aboveRoads)
-                }
-            } else if let topoOverlay {
-                mapView.removeOverlay(topoOverlay)
-                self.topoOverlay = nil
-            }
 
             if hasFused,
                let image = viewModel.fusedMapImage,
@@ -917,9 +903,6 @@ struct SiteMapRepresentable: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let fused = overlay as? FusedMapGroundOverlay {
                 return FusedMapOverlayRenderer(overlay: fused)
-            }
-            if let tile = overlay as? MKTileOverlay {
-                return MKTileOverlayRenderer(tileOverlay: tile)
             }
             if let polygon = overlay as? MKPolygon, polygon.title == "Building" {
                 let renderer = MKPolygonRenderer(polygon: polygon)

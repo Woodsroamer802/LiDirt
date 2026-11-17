@@ -33,7 +33,7 @@ enum JobSiteOfflineError: LocalizedError {
     }
 }
 
-/// Saves a high-resolution Job Site map image (topo snapshot + contours) for offline pan/zoom/rotate.
+/// Saves a high-resolution Job Site map image (map snapshot + contours, or Contour render) for offline pan/zoom/rotate.
 final class JobSiteOfflineStore: Sendable {
     /// Long edge of the offline image (matches fused renderer max for sharp pad zoom).
     static let longEdgePixels: CGFloat = 4096
@@ -107,7 +107,7 @@ final class JobSiteOfflineStore: Sendable {
         } else {
             progress?("Capturing high-res Job Site snapshot…")
             let size = Self.snapshotPixelSize(for: bounds)
-            let snapshot = try await captureTopoSnapshot(bounds: bounds, size: size)
+            let snapshot = try await captureMapSnapshot(bounds: bounds, size: size)
             progress?("Drawing contours on snapshot…")
             composed = Self.compose(
                 snapshot: snapshot,
@@ -151,14 +151,13 @@ final class JobSiteOfflineStore: Sendable {
     }
 
     @MainActor
-    private func captureTopoSnapshot(bounds: JobSiteBounds, size: CGSize) async throws -> MKMapSnapshotter.Snapshot {
+    private func captureMapSnapshot(bounds: JobSiteBounds, size: CGSize) async throws -> MKMapSnapshotter.Snapshot {
         let options = MKMapSnapshotter.Options()
         options.region = bounds.region
         options.size = size
         options.scale = 1
         options.mapType = .standard
-        // Prefer imagery-free topo-like look; snapshotter can't use custom tile overlays,
-        // so we use muted standard + later contour draw. Satellite hybrid is too busy for grade work.
+        // Muted standard underlay for contour draw; satellite hybrid is too busy for grade work.
         if #available(iOS 17.0, *) {
             options.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         }
