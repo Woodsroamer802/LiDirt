@@ -33,7 +33,7 @@ struct ProjectDetailView: View {
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
         .navigationTitle(project?.name ?? "Project")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showSiteMap) {
+        .fullScreenCover(isPresented: $showSiteMap) {
             NavigationStack {
                 SiteMapView(
                     projectName: project?.name ?? "Site",
