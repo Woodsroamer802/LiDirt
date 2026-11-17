@@ -6,6 +6,7 @@ enum SupabaseError: LocalizedError {
     case httpStatus(Int, String?)
     case decoding
     case auth(String)
+    case emailConfirmationRequired
 
     var errorDescription: String? {
         switch self {
@@ -15,6 +16,8 @@ enum SupabaseError: LocalizedError {
             return "Supabase error (\(code)). \(body ?? "")"
         case .decoding: return "Could not read Supabase response."
         case .auth(let message): return message
+        case .emailConfirmationRequired:
+            return "Account created. Check your email to confirm, then sign in. (Or turn off Confirm email in Supabase Auth settings.)"
         }
     }
 }
@@ -97,7 +100,17 @@ actor SupabaseClient {
             body: Body(email: email, password: password, data: meta),
             authed: false
         )
-        return try storeSession(from: data, fallbackEmail: email)
+        do {
+            return try storeSession(from: data, fallbackEmail: email)
+        } catch SupabaseError.emailConfirmationRequired {
+            // Confirm-email projects return a user with no tokens. Try password sign-in
+            // in case confirmation is already disabled / auto-confirmed.
+            do {
+                return try await signIn(email: email, password: password)
+            } catch {
+                throw SupabaseError.emailConfirmationRequired
+            }
+        }
     }
 
     @discardableResult
@@ -312,33 +325,53 @@ actor SupabaseClient {
     }
 
     private func storeSession(from data: Data, fallbackEmail: String) throws -> SupabaseSession {
-        struct AuthUserDTO: Decodable {
-            var id: UUID
-            var email: String?
+        // Parse with JSONSerialization so missing/optional tokens (email-confirm signup)
+        // don't surface as opaque DecodingError ("The data couldn't be read because it is missing").
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw SupabaseError.decoding
         }
-        struct AuthResponse: Decodable {
-            var access_token: String
-            var refresh_token: String
-            var expires_in: Int?
-            var expires_at: Double?
-            var user: AuthUserDTO?
+
+        let accessToken = root["access_token"] as? String
+        let refreshToken = root["refresh_token"] as? String
+        let userObj = root["user"] as? [String: Any]
+        let userIdString = (userObj?["id"] as? String) ?? (root["id"] as? String)
+        let email = (userObj?["email"] as? String) ?? (root["email"] as? String) ?? fallbackEmail
+
+        guard let accessToken, !accessToken.isEmpty,
+              let refreshToken, !refreshToken.isEmpty,
+              let userIdString,
+              let userId = UUID(uuidString: userIdString) else {
+            // Signup with "Confirm email" returns 200 + user, but no session tokens.
+            if userIdString != nil || userObj != nil {
+                throw SupabaseError.emailConfirmationRequired
+            }
+            if let message = root["msg"] as? String
+                ?? root["error_description"] as? String
+                ?? root["message"] as? String {
+                throw SupabaseError.auth(message)
+            }
+            throw SupabaseError.decoding
         }
-        let parsed = try decoder.decode(AuthResponse.self, from: data)
-        guard let user = parsed.user else { throw SupabaseError.decoding }
+
         let expiresAt: Date
-        if let expiresAtUnix = parsed.expires_at {
+        if let expiresAtUnix = root["expires_at"] as? Double {
             expiresAt = Date(timeIntervalSince1970: expiresAtUnix)
-        } else if let expiresIn = parsed.expires_in {
+        } else if let expiresAtUnix = root["expires_at"] as? Int {
+            expiresAt = Date(timeIntervalSince1970: TimeInterval(expiresAtUnix))
+        } else if let expiresIn = root["expires_in"] as? Int {
             expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+        } else if let expiresIn = root["expires_in"] as? Double {
+            expiresAt = Date().addingTimeInterval(expiresIn)
         } else {
             expiresAt = Date().addingTimeInterval(3600)
         }
+
         let session = SupabaseSession(
-            accessToken: parsed.access_token,
-            refreshToken: parsed.refresh_token,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
             expiresAt: expiresAt,
-            userId: user.id,
-            email: user.email ?? fallbackEmail
+            userId: userId,
+            email: email
         )
         authSession = session
         Self.persist(session)

@@ -134,8 +134,9 @@ struct LoginView: View {
         } catch {
             let text = error.localizedDescription
             if text.localizedCaseInsensitiveContains("confirm")
-                || text.localizedCaseInsensitiveContains("email") && text.localizedCaseInsensitiveContains("confirm") {
-                infoMessage = "Check your email to confirm the account, then sign in."
+                || text.localizedCaseInsensitiveContains("check your email") {
+                infoMessage = "Account created — confirm via email, then Sign in."
+                mode = .signIn
             }
             errorMessage = text
         }
