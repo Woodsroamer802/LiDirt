@@ -45,6 +45,7 @@ enum FusedSiteMapRenderer {
         bounds: JobSiteBounds,
         intervalInches: Double,
         drawContours: Bool = true,
+        buildings: [BuildingFootprint] = [],
         longEdge: CGFloat? = nil
     ) -> RenderedMap? {
         guard bounds.isValid else { return nil }
@@ -137,6 +138,29 @@ enum FusedSiteMapRenderer {
                 }
             }
 
+            // Building outlines + fill (OpenStreetMap footprints) — site-plan style shading.
+            if !buildings.isEmpty {
+                let fill = UIColor(red: 0.55, green: 0.62, blue: 0.72, alpha: 0.45).cgColor
+                let stroke = UIColor(red: 0.18, green: 0.28, blue: 0.42, alpha: 0.95).cgColor
+                cg.setLineWidth(max(1.5, CGFloat(width) / 700))
+                cg.setLineDash(phase: 0, lengths: [])
+                cg.setLineJoin(.round)
+                for building in buildings {
+                    guard let path = buildingPath(
+                        building.coordinates,
+                        bounds: bounds,
+                        width: width,
+                        height: height
+                    ) else { continue }
+                    cg.addPath(path)
+                    cg.setFillColor(fill)
+                    cg.fillPath()
+                    cg.addPath(path)
+                    cg.setStrokeColor(stroke)
+                    cg.strokePath()
+                }
+            }
+
             // Job Site frame
             cg.setStrokeColor(UIColor(red: 0.96, green: 0.78, blue: 0.12, alpha: 0.85).cgColor)
             cg.setLineWidth(max(2, CGFloat(width) / 500))
@@ -161,10 +185,44 @@ enum FusedSiteMapRenderer {
             localZMetersNorth: localZ,
             origin: origin
         )
-        let u = (coord.longitude - bounds.west) / max(bounds.east - bounds.west, 1e-12)
-        let v = (bounds.north - coord.latitude) / max(bounds.north - bounds.south, 1e-12)
+        return mapPixel(coordinate: coord, bounds: bounds, width: width, height: height)
+    }
+
+    private static func mapPixel(
+        coordinate: CLLocationCoordinate2D,
+        bounds: JobSiteBounds,
+        width: Int,
+        height: Int
+    ) -> CGPoint? {
+        let u = (coordinate.longitude - bounds.west) / max(bounds.east - bounds.west, 1e-12)
+        let v = (bounds.north - coordinate.latitude) / max(bounds.north - bounds.south, 1e-12)
         guard u >= -0.02, u <= 1.02, v >= -0.02, v <= 1.02 else { return nil }
         return CGPoint(x: u * Double(width), y: v * Double(height))
+    }
+
+    private static func buildingPath(
+        _ coordinates: [CLLocationCoordinate2D],
+        bounds: JobSiteBounds,
+        width: Int,
+        height: Int
+    ) -> CGPath? {
+        guard coordinates.count >= 3 else { return nil }
+        let path = CGMutablePath()
+        var started = false
+        for coordinate in coordinates {
+            guard let point = mapPixel(coordinate: coordinate, bounds: bounds, width: width, height: height) else {
+                continue
+            }
+            if !started {
+                path.move(to: point)
+                started = true
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        guard started else { return nil }
+        path.closeSubpath()
+        return path
     }
 
     private static func hillshade(

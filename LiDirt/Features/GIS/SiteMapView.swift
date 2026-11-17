@@ -401,6 +401,15 @@ private struct JobSiteOptionsSheet: View {
                             viewModel.rebuildContours()
                         }
                     ))
+                    Toggle("Building outlines", isOn: Binding(
+                        get: { viewModel.showBuildings },
+                        set: { viewModel.setShowBuildings($0) }
+                    ))
+                    Text(viewModel.isLoadingBuildings
+                         ? "Loading OpenStreetMap building footprints…"
+                         : "Shaded building footprints from OpenStreetMap (where mapped).")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
                     Toggle("Job Site rectangle", isOn: $viewModel.showJobSiteOverlay)
                 }
 
@@ -709,6 +718,7 @@ struct SiteMapRepresentable: UIViewRepresentable {
         private var topoOverlay: MKTileOverlay?
         private var fusedOverlay: FusedMapGroundOverlay?
         private var lastContourIDs: [String] = []
+        private var lastBuildingIDs: [String] = []
         private var lastJobSite: JobSiteBounds?
         private var showingJobSite = false
         private var lastLockedBounds: JobSiteBounds?
@@ -853,6 +863,27 @@ struct SiteMapRepresentable: UIViewRepresentable {
                 }
             }
 
+            // Live MapKit polygons until the fused surface bakes building shading in.
+            let liveIDs: [String] = (viewModel.showBuildings && !hasFused)
+                ? viewModel.buildingFootprints.map(\.id)
+                : []
+            if liveIDs != lastBuildingIDs {
+                for overlay in mapView.overlays {
+                    if let polygon = overlay as? MKPolygon, polygon.title == "Building" {
+                        mapView.removeOverlay(polygon)
+                    }
+                }
+                lastBuildingIDs = liveIDs
+                for building in viewModel.buildingFootprints where liveIDs.contains(building.id) {
+                    var coords = building.coordinates
+                    guard coords.count >= 3 else { continue }
+                    let polygon = MKPolygon(coordinates: &coords, count: coords.count)
+                    polygon.title = "Building"
+                    polygon.subtitle = building.kind
+                    mapView.addOverlay(polygon, level: .aboveLabels)
+                }
+            }
+
             // During crop edit the UIKit overlay draws the frame; hide the MapKit polygon.
             let job = (!viewModel.isEditingJobSiteCrop && viewModel.showJobSiteOverlay)
                 ? viewModel.jobSite : nil
@@ -879,6 +910,13 @@ struct SiteMapRepresentable: UIViewRepresentable {
             }
             if let tile = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tile)
+            }
+            if let polygon = overlay as? MKPolygon, polygon.title == "Building" {
+                let renderer = MKPolygonRenderer(polygon: polygon)
+                renderer.fillColor = UIColor(red: 0.55, green: 0.62, blue: 0.72, alpha: 0.40)
+                renderer.strokeColor = UIColor(red: 0.18, green: 0.28, blue: 0.42, alpha: 0.95)
+                renderer.lineWidth = 1.5
+                return renderer
             }
             if let polygon = overlay as? MKPolygon, polygon.title == "Job Site" {
                 let renderer = MKPolygonRenderer(polygon: polygon)
