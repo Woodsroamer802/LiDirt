@@ -36,28 +36,6 @@ final class FusedDEMBuilderTests: XCTestCase {
         XCTAssertEqual(values[1], 13.25)
     }
 
-    func testParseAAIGridAndBilinearSample() throws {
-        let asc = """
-        ncols        2
-        nrows        2
-        xllcorner    -105.0
-        yllcorner    40.0
-        cellsize     0.001
-        NODATA_value  -9999
-         100.0 110.0
-         120.0 130.0
-        """
-        let grid = try AAIGrid.parse(asc)
-        XCTAssertEqual(grid.ncols, 2)
-        XCTAssertEqual(grid.nrows, 2)
-        // Northwest cell center ≈ (-104.9995, 40.0015) → first data row value 100
-        let nw = AAIGrid.sampleBilinear(grid, latitude: 40.0015, longitude: -104.9995)
-        XCTAssertEqual(nw!, 100, accuracy: 0.5)
-        // Southeast cell center ≈ (-104.9985, 40.0005) → 130
-        let se = AAIGrid.sampleBilinear(grid, latitude: 40.0005, longitude: -104.9985)
-        XCTAssertEqual(se!, 130, accuracy: 0.5)
-    }
-
     func testPrintSheetSizes() {
         XCTAssertEqual(PrintSheetSize.archD24x36.widthInches, 36)
         XCTAssertEqual(PrintSheetSize.archD24x36.heightInches, 24)

@@ -122,11 +122,10 @@ Matches the scan MVP spec module layout under `LiDirt/`:
 
 From a project (**Job Site map**) or scan review:
 
-- **Fused surface map** — USGS 3DEP foundation (OpenTopography near-term; self-hosted AAIGrid API later) + LiDAR + GPS hillshade/contours at adaptive high resolution (retina) for pad-scale sharpness
+- **Fused surface map** — USGS 3DEP foundation from The National Map (public domain; same stack as [Lidar Explorer](https://apps.nationalmap.gov/lidar-explorer/#/)) + phone LiDAR + GPS hillshade/contours at adaptive high resolution (retina) for pad-scale sharpness
 - Outline as a **rectangle or square** (width × length in feet); **reposition** with map-center / GPS / Nudge N-S-E-W
 - **Lock view to Job Site** so project map stays inside the outline
-- Foundation DEM via `FOUNDATION_DEM_PROVIDER` / `FOUNDATION_DEM_URL` in Info.plist (swap OT → self-host without app rewrite); National Map multipoint as fallback
-- Faster scan→map: raster DEM fetch + bilinear sample, background fuse/contours, chained contour overlays
+- Faster scan→map: parallel 3DEP fetch, background fuse/contours, chained contour overlays
 - **Finish scan** builds the DEM off the main thread (progress on HUD); review preview smooths in background
 - Tap a past scan to reopen review / upload (package auto-saves after Finish)
 - Compact **Map options** sheet; offline uses the same fused render when a scan is loaded
