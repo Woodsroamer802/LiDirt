@@ -24,7 +24,7 @@ struct ScanReviewView: View {
     @State private var showLowCoverageConfirm = false
     @State private var showContours = true
     @State private var showDeleteConfirm = false
-    @State private var showTopoMap = false
+    @State private var showSiteMap = false
     @State private var intervalText: String = ""
     @State private var activeIntervalInches: Double = ContourPreview.defaultIntervalInches
     @State private var surfaceMode: ContourSurfaceMode = .smoothedGround
@@ -63,7 +63,7 @@ struct ScanReviewView: View {
             onContourSurfaceModeChange?(mode)
             preparePreviewAsync()
         }
-        .fullScreenCover(isPresented: $showTopoMap) {
+        .fullScreenCover(isPresented: $showSiteMap) {
             NavigationStack {
                 SiteMapView(
                     projectName: projectName,
@@ -228,7 +228,7 @@ struct ScanReviewView: View {
             if heightmap != nil {
                 Button {
                     applyInterval()
-                    showTopoMap = true
+                    showSiteMap = true
                 } label: {
                     Label("Open Job Site map", systemImage: "map")
                         .frame(maxWidth: .infinity)

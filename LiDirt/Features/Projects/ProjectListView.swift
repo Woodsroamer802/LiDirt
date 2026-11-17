@@ -227,7 +227,7 @@ struct SettingsView: View {
                 Section("Disclaimer") {
                     Text(ScanPackageWriter.disclaimer)
                         .font(LiDirtTypography.caption)
-                    Text(GISDisclaimer.topoContours)
+                    Text(GISDisclaimer.contourMap)
                         .font(LiDirtTypography.caption)
                 }
                 Section {

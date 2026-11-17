@@ -7,7 +7,6 @@ import Combine
 final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var region: MKCoordinateRegion
     @Published var userCoordinate: CLLocationCoordinate2D?
-    @Published var showTopo = true
     @Published var showContours = true
     @Published var contourIntervalInches: Double
     @Published var contourSurfaceMode: ContourSurfaceMode
@@ -146,10 +145,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         refreshOfflineAvailability()
         refreshBuildingFootprints()
         if lidarHeightmap == nil {
-            statusMessage = "USGS topo — set a Job Site, then open Contour map for a sharp pad view."
+            statusMessage = "Set a Job Site, then open Contour map for a sharp pad view."
             startFoundationMapIfNeeded()
         } else if orientation.latitude == nil {
-            statusMessage = "Scan has no GPS fix — showing topo only."
+            statusMessage = "Scan has no GPS fix — Contour map needs Location to place LiDAR."
             contourNote = GISDisclaimer.needScanGPS
         } else {
             // New / missing outline: center on the scan, then user adjusts size.
@@ -227,7 +226,6 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         fusedMapOnly = enabled
         if enabled {
             showFusedSurfaceMap = true
-            showTopo = false
             if fusedMapImage == nil {
                 if lidarHeightmap != nil {
                     rebuildContours()
@@ -238,11 +236,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             if let bounds = fusedMapBounds ?? jobSite {
                 region = bounds.region
             }
-            statusMessage = enabled
-                ? "Contour map only — Apple tiles hidden."
-                : statusMessage
+            statusMessage = "Contour map only — Apple tiles hidden."
         } else {
-            showTopo = true
             refreshStatus()
         }
     }
@@ -451,7 +446,6 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     func beginJobSiteCropEdit() {
         if fusedMapOnly {
             fusedMapOnly = false
-            showTopo = true
         }
         if jobSite == nil || jobSite?.isValid != true {
             if hasScannedSurface {
@@ -667,7 +661,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     }
 
     /// Geocode an address, frame a Job Site at the current outline size, then download for offline use.
-    func downloadTopoForAddress() {
+    func downloadContourMapForAddress() {
         let query = addressText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             offlineError = "Enter a street address or place name."
@@ -699,15 +693,15 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 userCoordinate = coord
                 isGeocodingAddress = false
                 offlineProgress = String(
-                    format: "Downloading ~%.0f×%.0f ft topo for %@…",
+                    format: "Downloading ~%.0f×%.0f ft Contour map for %@…",
                     widthFeet, lengthFeet, query
                 )
                 rebuildContours()
-                statusMessage = "Address found — downloading topo + LiDAR layer for offline…"
+                statusMessage = "Address found — downloading Contour map for offline…"
                 guard let projectId else {
                     isGeocodingAddress = false
                     offlineProgress = nil
-                    offlineError = "Open this map from a project to save offline topo."
+                    offlineError = "Open this map from a project to save offline Contour map."
                     return
                 }
                 let origin: CLLocationCoordinate2D? = {
@@ -733,8 +727,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 offlineImage = offlineStore.loadImage(projectId: projectId)
                 offlineProgress = nil
                 let lidarNote = contourPolylines.isEmpty
-                    ? "Topo foundation only (scan on site to blend LiDAR into the contour map)."
-                    : "3DEP + LiDAR contour map ready offline."
+                    ? "3DEP Contour map only (scan on site to blend LiDAR)."
+                    : "3DEP + LiDAR Contour map ready offline."
                 statusMessage = String(
                     format: "Offline Job Site ready (~%.0f×%.0f ft) for %@. %@",
                     widthFeet, lengthFeet, query, lidarNote
@@ -1082,15 +1076,15 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 }
             }
         } else if lidarHeightmap != nil, orientation.latitude != nil {
-            statusMessage = "LiDAR \(surface) contours on topo — contour blend pending or unavailable."
+            statusMessage = "LiDAR \(surface) contours — Contour blend pending or unavailable."
         } else if lidarHeightmap != nil {
-            statusMessage = "Scan loaded — need GPS to place the contour map."
+            statusMessage = "Scan loaded — need GPS to place the Contour map."
         } else if fusedMapImage != nil {
-            statusMessage = "3DEP contour map ready — open Contour map for a sharp pad view."
+            statusMessage = "3DEP Contour map ready — open Contour map for a sharp pad view."
         } else if jobSite?.isValid == true {
-            statusMessage = "Job Site set — building contour map from USGS elevation…"
+            statusMessage = "Job Site set — building Contour map from USGS elevation…"
         } else {
-            statusMessage = "USGS topo — set a Job Site, then open Contour map."
+            statusMessage = "Set a Job Site, then open Contour map."
         }
     }
 }
@@ -1103,7 +1097,7 @@ extension SiteMapViewModel: CLLocationManagerDelegate {
                 manager.startUpdatingLocation()
             case .denied, .restricted:
                 if lidarHeightmap == nil {
-                    statusMessage = "Location denied — pan the topo map manually."
+                    statusMessage = "Location denied — pan the map manually."
                 }
             default:
                 break
