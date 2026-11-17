@@ -14,6 +14,8 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 | Backend | Supabase (`profiles` / `projects` / `scans` + `scan-packages` storage). Cursor MCP: `.cursor/mcp.json` |
 | Non-LiDAR / Simulator | Capture is **blocked** — Unsupported Device UX; no fake DEM |
 
+Schema lives in `supabase/migrations/` for the GitHub ↔ Supabase integration (working directory = repo root `.`).
+
 If sign-up says to confirm email, turn off **Confirm email** under Supabase Auth settings for field testing, or confirm via the email link.
 
 ## Open & run (LiDAR Pro device)

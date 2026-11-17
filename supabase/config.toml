@@ -1,0 +1,16 @@
+# LiDirt Supabase project (GitHub integration working directory = repo root ".")
+# Project ref: jwpklfannqxcesqnoxra
+
+project_id = "lidirt"
+
+[api]
+enabled = true
+
+[db]
+major_version = 17
+
+[auth]
+enabled = true
+
+[storage]
+enabled = true
