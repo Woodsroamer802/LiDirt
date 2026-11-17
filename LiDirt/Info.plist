@@ -24,6 +24,14 @@
 	<string>https://jwpklfannqxcesqnoxra.supabase.co</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cGtsZmFubnF4Y2VzcW5veHJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ5MDMyMzgsImV4cCI6MjExMDQ3OTIzOH0.FcasaKD4v3o0kEsS1gGpT50k7itMQdFesis7a-3EwLw</string>
+	<key>FOUNDATION_DEM_PROVIDER</key>
+	<string>openTopography</string>
+	<key>FOUNDATION_DEM_URL</key>
+	<string></string>
+	<key>FOUNDATION_DEM_DATASET</key>
+	<string>USGS10m</string>
+	<key>OPENTOPOGRAPHY_API_KEY</key>
+	<string></string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
