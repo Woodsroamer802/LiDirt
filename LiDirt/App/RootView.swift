@@ -16,9 +16,7 @@ struct RootView: View {
             } else if environment.authToken == nil {
                 LoginView(onAuthenticated: {})
             } else {
-                NavigationStack {
-                    ProjectListView()
-                }
+                MainTabView()
             }
         }
         .tint(LiDirtColors.constructionYellow)

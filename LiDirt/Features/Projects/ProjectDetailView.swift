@@ -14,6 +14,8 @@ struct ProjectDetailView: View {
     @State private var showSiteMap = false
     @State private var siteMapHeightmap: HeightmapResult?
     @State private var siteMapOrientation: ScanOrientationSnapshot = .unavailable
+    @State private var siteModelHeightmap: HeightmapResult?
+    @State private var showSiteModel3D = false
     @State private var isSavingPackage = false
     @State private var packageHint: String?
 
@@ -53,6 +55,18 @@ struct ProjectDetailView: View {
                         Task { await environment.pushProject(updated) }
                     }
                 )
+            }
+        }
+        .fullScreenCover(isPresented: $showSiteModel3D) {
+            NavigationStack {
+                if let siteModelHeightmap {
+                    SiteModel3DView(heightmap: siteModelHeightmap)
+                } else {
+                    Text("No DEM available for 3D.")
+                        .foregroundStyle(LiDirtColors.textSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(LiDirtColors.gunmetal)
+                }
             }
         }
         .fullScreenCover(isPresented: $showScan) {
@@ -174,7 +188,15 @@ struct ProjectDetailView: View {
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                    Text("Finished map: tap Job Site map above (uses latest saved scan). After Finish, also use Open Job Site map on Scan review.")
+                    Button {
+                        openLatest3DModel(for: project)
+                    } label: {
+                        Label("Open 3D model", systemImage: "cube.transparent")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(LiDirtSecondaryButtonStyle())
+
+                    Text("Job Site map for contours · 3D Models tab (or Open 3D model) for proposed finish grades and materials.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
 
@@ -268,23 +290,43 @@ struct ProjectDetailView: View {
         if let review = reviewPayload, let heightmap = review.heightmap {
             siteMapHeightmap = heightmap
             siteMapOrientation = review.orientation
-        } else {
-            let candidates = project.scanSummaries.sorted { $0.capturedAt > $1.capturedAt }
-            for scan in candidates {
-                let dir: URL
-                if let path = scan.localPackagePath {
-                    dir = URL(fileURLWithPath: path)
-                } else {
-                    dir = environment.localScanStore.packageURL(for: scan.id)
-                }
-                if let loaded = try? ScanPackageReader.load(from: dir) {
-                    siteMapHeightmap = loaded.heightmap
-                    siteMapOrientation = loaded.orientation
-                    break
-                }
-            }
+        } else if let loaded = loadLatestPackagedScan(for: project) {
+            siteMapHeightmap = loaded.heightmap
+            siteMapOrientation = loaded.orientation
         }
         showSiteMap = true
+    }
+
+    private func openLatest3DModel(for project: Project) {
+        if let review = reviewPayload, let heightmap = review.heightmap {
+            siteModelHeightmap = heightmap
+            showSiteModel3D = true
+            return
+        }
+        guard let loaded = loadLatestPackagedScan(for: project) else {
+            uploadErrorMessage = "No saved scan package yet. Finish a scan and wait for “Scan package saved”, then open 3D again — or use the 3D Models tab."
+            return
+        }
+        siteModelHeightmap = loaded.heightmap
+        showSiteModel3D = true
+    }
+
+    private func loadLatestPackagedScan(
+        for project: Project
+    ) -> (metadata: ScanMetadata, heightmap: HeightmapResult, orientation: ScanOrientationSnapshot)? {
+        let candidates = project.scanSummaries.sorted { $0.capturedAt > $1.capturedAt }
+        for scan in candidates {
+            let dir: URL
+            if let path = scan.localPackagePath {
+                dir = URL(fileURLWithPath: path)
+            } else {
+                dir = environment.localScanStore.packageURL(for: scan.id)
+            }
+            if let loaded = try? ScanPackageReader.load(from: dir) {
+                return loaded
+            }
+        }
+        return nil
     }
 
     private func deleteScan(scanId: UUID, projectId: UUID) {
