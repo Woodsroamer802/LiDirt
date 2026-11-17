@@ -160,6 +160,8 @@
 		B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialCatalog.swift; sourceTree = "<group>"; };
 		B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculator.swift; sourceTree = "<group>"; };
 		B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculatorTests.swift; sourceTree = "<group>"; };
+		C33C33F01C01D01E01F03001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		C33C33F01C01D01E01F03002 /* ModelsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsListView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -187,6 +189,8 @@
 				105E84654BD340FD947D54DA,
 				F8E8875FE3D34DE3A9C774D9,
 				E94BAA09028342B2BD2EDBD4,
+				C33C33F01C01D01E01F03001 /* MainTabView.swift */,
+				C33C33F01C01D01E01F03002 /* ModelsListView.swift */,
 			);
 			path = Projects;
 			sourceTree = "<group>";
@@ -554,6 +558,8 @@
 				A11A11B01C01D01E01F01006 /* SiteModel3DView.swift in Sources */,
 				B22B22B01C01D01E01F02001 /* MaterialCatalog.swift in Sources */,
 				B22B22B01C01D01E01F02002 /* MaterialsCalculator.swift in Sources */,
+				C33C33B01C01D01E01F03001 /* MainTabView.swift in Sources */,
+				C33C33B01C01D01E01F03002 /* ModelsListView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
