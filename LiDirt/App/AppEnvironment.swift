@@ -110,9 +110,13 @@ final class AppEnvironment: ObservableObject {
 
     /// Push one project row (and keep going offline-first if it fails).
     func pushProject(_ project: Project) async {
-        guard let ownerId = authService.currentUser?.id ?? (await SupabaseClient.shared.currentSession())?.userId else {
-            return
+        let ownerId: UUID?
+        if let id = authService.currentUser?.id {
+            ownerId = id
+        } else {
+            ownerId = await SupabaseClient.shared.currentSession()?.userId
         }
+        guard let ownerId else { return }
         do {
             try await SupabaseClient.shared.upsertProject(project, ownerId: ownerId)
         } catch {
