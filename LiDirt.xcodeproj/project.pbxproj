@@ -79,6 +79,8 @@
 		B22B22B01C01D01E01F02001 /* MaterialCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */; };
 		B22B22B01C01D01E01F02002 /* MaterialsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */; };
 		B22B22B01C01D01E01F02003 /* MaterialsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */; };
+		C33C33B01C01D01E01F03001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03001 /* MainTabView.swift */; };
+		C33C33B01C01D01E01F03002 /* ModelsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03002 /* ModelsListView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
