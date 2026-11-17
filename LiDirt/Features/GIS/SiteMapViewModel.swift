@@ -152,6 +152,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             statusMessage = "Scan has no GPS fix — showing topo only."
             contourNote = GISDisclaimer.needScanGPS
         } else {
+            // New / missing outline: center on the scan, then user adjusts size.
+            if jobSite?.isValid != true {
+                centerJobSiteOnScan()
+            }
             startFuseIfNeeded()
         }
     }
@@ -355,6 +359,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         zoomToJobSite()
     }
 
+    /// Fit Job Site AABB to the LiDAR scan footprint (legacy “match scan size”).
     func setJobSiteFromScan() {
         guard let heightmap = lidarHeightmap ?? fusedResult?.heightmap,
               let lat = orientation.latitude,
@@ -370,6 +375,59 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         linkSquareSides = abs(bounds.sideFeetNS - bounds.sideFeetEW) < 1.5
         applyJobSite(bounds)
         zoomToJobSite()
+    }
+
+    /// Center the current outline size on the scan (user can then resize). Preferred when a scan is loaded.
+    func centerJobSiteOnScan() {
+        guard let heightmap = lidarHeightmap ?? fusedResult?.heightmap,
+              let lat = orientation.latitude,
+              let lon = orientation.longitude else {
+            contourNote = "Need a GPS-tagged scan to center the Job Site."
+            return
+        }
+        let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        let scanFootprint = JobSiteBounds.from(
+            heightmap: heightmap,
+            origin: origin,
+            paddingFactor: 1.0
+        )
+        // Keep adjustable size, but don't start smaller than the scan pad.
+        var width = JobSiteDefaults.clampSideFeet(outlineWidthFeet)
+        var length = JobSiteDefaults.clampSideFeet(outlineLengthFeet)
+        width = max(width, JobSiteDefaults.clampSideFeet(scanFootprint.widthFeet * 1.05))
+        length = max(length, JobSiteDefaults.clampSideFeet(scanFootprint.lengthFeet * 1.05))
+        if linkSquareSides {
+            let side = max(width, length)
+            width = side
+            length = side
+        }
+        outlineWidthFeet = width
+        outlineLengthFeet = length
+        let rotation = jobSite?.rotationDegrees ?? 0
+        applyJobSite(JobSiteBounds.rectangle(
+            center: scanFootprint.center,
+            widthFeet: width,
+            lengthFeet: length,
+            rotationDegrees: rotation
+        ))
+        zoomToJobSite()
+        statusMessage = String(
+            format: "Job Site centered on scan — %.0f × %.0f ft (adjust size as needed).",
+            width,
+            length
+        )
+    }
+
+    /// Geographic center of the LiDAR DEM when GPS orientation is available.
+    var scanCenterCoordinate: CLLocationCoordinate2D? {
+        guard let lat = orientation.latitude, let lon = orientation.longitude else { return nil }
+        let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        guard let heightmap = lidarHeightmap ?? fusedResult?.heightmap else { return origin }
+        return JobSiteBounds.from(heightmap: heightmap, origin: origin, paddingFactor: 1.0).center
+    }
+
+    var hasScannedSurface: Bool {
+        (lidarHeightmap ?? fusedResult?.heightmap) != nil && orientation.latitude != nil
     }
 
     /// Place / resize the outline using current width × length (feet).
@@ -396,7 +454,11 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             showTopo = true
         }
         if jobSite == nil || jobSite?.isValid != true {
-            placeOutlineAtMapCenter()
+            if hasScannedSurface {
+                centerJobSiteOnScan()
+            } else {
+                placeOutlineAtMapCenter()
+            }
         }
         guard let current = jobSite, current.isValid else { return }
         cropEditBaseline = current

@@ -466,6 +466,15 @@ private struct JobSiteOptionsSheet: View {
                     .font(LiDirtTypography.caption)
                     .foregroundStyle(LiDirtColors.textMuted)
 
+                    Button("Center on scan") {
+                        viewModel.centerJobSiteOnScan()
+                    }
+                    .disabled(!viewModel.hasScannedSurface)
+                    Text(viewModel.hasScannedSurface
+                         ? "Places the outline on the LiDAR scan — then use the sliders or Adjust on map to change size."
+                         : "Load a GPS-tagged scan to center the Job Site on it.")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
                     Button("Place outline at map center") {
                         viewModel.placeOutlineAtMapCenter()
                     }
@@ -475,7 +484,8 @@ private struct JobSiteOptionsSheet: View {
 
                     Toggle("Lock view to Job Site", isOn: $viewModel.lockViewToJobSite)
                     Button("Set from current map view") { viewModel.setJobSiteFromCurrentView() }
-                    Button("Set from LiDAR scan") { viewModel.setJobSiteFromScan() }
+                    Button("Fit size to LiDAR scan") { viewModel.setJobSiteFromScan() }
+                        .disabled(!viewModel.hasScannedSurface)
                     Button("Zoom to Job Site") { viewModel.zoomToJobSite() }
                         .disabled(viewModel.jobSite == nil)
                     Button("Clear Job Site", role: .destructive) { viewModel.clearJobSite() }
