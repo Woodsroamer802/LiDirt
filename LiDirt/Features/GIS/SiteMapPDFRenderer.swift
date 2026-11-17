@@ -266,7 +266,7 @@ enum SiteMapPDFRenderer {
         }
 
         let lines = [
-            "LiDirt fused site map — heavy equipment planning aid",
+            "LiDirt contour map — heavy equipment planning aid",
             "Project: \(model.projectName)",
             "Sheet: \(model.sheet.label)  ·  Contour interval: \(intervalLabel)  ·  \(scaleText)",
             String(

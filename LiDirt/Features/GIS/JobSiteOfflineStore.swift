@@ -102,7 +102,7 @@ final class JobSiteOfflineStore: Sendable {
             longEdge: max(Self.longEdgePixels, FusedSiteMapRenderer.longEdgePixels(for: bounds))
            ),
            let fusedImage = rendered.image {
-            progress?("Rendering fused 3DEP + LiDAR map…")
+            progress?("Rendering 3DEP + LiDAR contour map…")
             composed = fusedImage
         } else {
             progress?("Capturing high-res Job Site snapshot…")

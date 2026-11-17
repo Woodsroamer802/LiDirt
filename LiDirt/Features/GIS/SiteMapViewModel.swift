@@ -191,7 +191,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
     var contourMapViewerSubtitle: String {
         if lidarHeightmap != nil {
-            return "Fused 3DEP + LiDAR contour map"
+            return "3DEP + LiDAR contour map"
         }
         return "USGS 3DEP hillshade + contours — sharp at pad zoom"
     }
@@ -671,8 +671,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 offlineImage = offlineStore.loadImage(projectId: projectId)
                 offlineProgress = nil
                 let lidarNote = contourPolylines.isEmpty
-                    ? "Topo foundation only (scan on site to fuse LiDAR into the map)."
-                    : "Fused 3DEP + LiDAR map ready offline."
+                    ? "Topo foundation only (scan on site to blend LiDAR into the contour map)."
+                    : "3DEP + LiDAR contour map ready offline."
                 statusMessage = String(
                     format: "Offline Job Site ready (~%.0f×%.0f ft) for %@. %@",
                     widthFeet, lengthFeet, query, lidarNote
@@ -803,7 +803,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
         isFusing = true
         fuseProgress = "Fetching USGS 3DEP foundation…"
-        statusMessage = fuseProgress ?? "Fusing…"
+        statusMessage = fuseProgress ?? "Building contour map…"
         let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
         let service = elevationService
         fuseTask?.cancel()
@@ -816,7 +816,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 )
                 if Task.isCancelled { return }
                 fuseProgress = "Blending LiDAR into foundation…"
-                statusMessage = fuseProgress ?? "Fusing…"
+                statusMessage = fuseProgress ?? "Building contour map…"
                 let fused = await Task.detached(priority: .userInitiated) {
                     FusedDEMBuilder.fuse(foundation: foundation, lidar: lidar)
                 }.value
@@ -834,7 +834,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 // Fallback: contours from LiDAR alone with relative elevations.
                 isFusing = false
                 fuseProgress = nil
-                contourNote = "3DEP unavailable (\(error.localizedDescription)). Showing LiDAR-only fused map."
+                contourNote = "3DEP unavailable (\(error.localizedDescription)). Showing LiDAR-only contour map."
                 fusedResult = nil
                 rebuildContours()
                 refreshStatus()
@@ -995,7 +995,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
     private func refreshStatus() {
         if isFusing {
-            statusMessage = fuseProgress ?? "Fusing USGS 3DEP + LiDAR…"
+            statusMessage = fuseProgress ?? "Building contour map (3DEP + LiDAR)…"
             return
         }
         let surface = contourSurfaceMode == .smoothedGround ? "smoothed" : "as-scanned"
@@ -1003,9 +1003,9 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             let label = contourIntervalInches < 1
                 ? String(format: "%.3g in", contourIntervalInches)
                 : String(format: "%.2g in", contourIntervalInches)
-            let mapNote = fusedMapImage == nil ? "building map…" : "fused surface map ready"
+            let mapNote = fusedMapImage == nil ? "building map…" : "contour map ready"
             statusMessage =
-                "Fused \(surface) @ \(label) — 3DEP + \(fused.lidarSampleCount) LiDAR cells · \(mapNote)."
+                "Contour \(surface) @ \(label) — 3DEP + \(fused.lidarSampleCount) LiDAR cells · \(mapNote)."
             // Prefer the outlined Job Site; never yank the camera to the raw DEM footprint when locked.
             if !didFitScanRegion {
                 if let jobSite, jobSite.isValid {
@@ -1020,9 +1020,9 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 }
             }
         } else if lidarHeightmap != nil, orientation.latitude != nil {
-            statusMessage = "LiDAR \(surface) contours on topo — fuse pending or unavailable."
+            statusMessage = "LiDAR \(surface) contours on topo — contour blend pending or unavailable."
         } else if lidarHeightmap != nil {
-            statusMessage = "Scan loaded — need GPS to place and fuse."
+            statusMessage = "Scan loaded — need GPS to place the contour map."
         } else if fusedMapImage != nil {
             statusMessage = "3DEP contour map ready — open Contour map for a sharp pad view."
         } else if jobSite?.isValid == true {
