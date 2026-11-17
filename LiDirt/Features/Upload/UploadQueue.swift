@@ -15,6 +15,9 @@ final class UploadQueue: ObservableObject {
     @Published private(set) var items: [QueuedUpload] = []
     @Published private(set) var isProcessing = false
 
+    /// Optional hook to upsert the parent project before a scan insert (RLS requires it).
+    var ensureProject: ((UUID) async -> Void)?
+
     private var uploadService: UploadService
     private let paths: FilePaths
     private let fileManager: FileManager
@@ -96,6 +99,7 @@ final class UploadQueue: ObservableObject {
         let heightmapURL = dir.appendingPathComponent("heightmap.f32")
 
         do {
+            await ensureProject?(item.projectId)
             let metaData = try Data(contentsOf: metadataURL)
             let metadata = try ScanPackageWriter.decodeMetadata(from: metaData)
             let package = ScanPackage(
