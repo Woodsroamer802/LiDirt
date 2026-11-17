@@ -11,7 +11,10 @@ Not a certified survey. Contour intervals down to 1/8 inch are **display** on th
 | Xcode | 15+ (Swift 5.9+, iOS 17 SDK) |
 | Capture hardware | iPhone/iPad **Pro** with LiDAR (`supportsSceneReconstruction(.mesh)`) |
 | OS | iOS 17+ |
+| Backend | Supabase (`profiles` / `projects` / `scans` + `scan-packages` storage). Cursor MCP: `.cursor/mcp.json` |
 | Non-LiDAR / Simulator | Capture is **blocked** — Unsupported Device UX; no fake DEM |
+
+If sign-up says to confirm email, turn off **Confirm email** under Supabase Auth settings for field testing, or confirm via the email link.
 
 ## Open & run (LiDAR Pro device)
 
@@ -37,7 +40,7 @@ Then **Product → Clean Build Folder** and Build. Do not keep patching an old D
 2. Select the **LiDirt** scheme and your physical Pro device (not Simulator for capture).
 3. Set your Development Team under Signing & Capabilities.
 4. Build & Run.
-5. You should briefly see the **LiDirt logo** on yellow + a spinner, then the email stub login with the same mark. Enter any email → **Continue**.
+5. You should briefly see the **LiDirt logo** on yellow + a spinner, then the **Supabase** sign-in screen. Create an account (email + password) or sign in. Projects and scan packages sync to the LiDirt Supabase project.
 6. **New project** → **Start scan**.
 7. Allow location when prompted (optional; used for approximate north).
 8. Tap **Begin pass** (3–2–1 countdown) → walk → **End pass** → **Start next pass** → **Begin pass** again for multi-pass averaging → **Finish scan** → review → **Upload**.

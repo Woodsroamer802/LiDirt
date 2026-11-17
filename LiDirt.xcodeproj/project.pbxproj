@@ -34,6 +34,8 @@
 		24583F48003945C7AA79CCB6 /* UploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776ACA340E164C97B5AE18DF /* UploadService.swift */; };
 		3B921F743BD34585BB781FA4 /* UploadStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F57D348B26040DAB611F50C /* UploadStatusView.swift */; };
 		3E7DE70D83B34D2CBAE46B73 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D0A0C27760546CA96440E53 /* APIClient.swift */; };
+		E7F8A9B0C1D22E3F4A5B6C7D /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A9B0C1D2E33F4A5B6C7D8E /* SupabaseConfig.swift */; };
+		A9B0C1D2E3F4405B6C7D8E9F /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C1D2E3F4A5516C7D8E9F0A /* SupabaseClient.swift */; };
 		732EA26B1BD54B27934C8031 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F47E7E80F9847DBAEED70B0 /* Endpoints.swift */; };
 		8524564309F445DA97BF61B8 /* FilePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB7BA69BE364645992C929A /* FilePaths.swift */; };
 		26EC437C21C5458AA82871F1 /* LocalScanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B110197CE34BBDB02C7766 /* LocalScanStore.swift */; };
@@ -98,6 +100,8 @@
 		776ACA340E164C97B5AE18DF /* UploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadService.swift; sourceTree = "<group>"; };
 		9F57D348B26040DAB611F50C /* UploadStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadStatusView.swift; sourceTree = "<group>"; };
 		8D0A0C27760546CA96440E53 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		F8A9B0C1D2E33F4A5B6C7D8E /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
+		B0C1D2E3F4A5516C7D8E9F0A /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
 		6F47E7E80F9847DBAEED70B0 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		8FB7BA69BE364645992C929A /* FilePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePaths.swift; sourceTree = "<group>"; };
 		31B110197CE34BBDB02C7766 /* LocalScanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalScanStore.swift; sourceTree = "<group>"; };
@@ -260,6 +264,8 @@
 			children = (
 				8D0A0C27760546CA96440E53,
 				6F47E7E80F9847DBAEED70B0,
+				F8A9B0C1D2E33F4A5B6C7D8E /* SupabaseConfig.swift */,
+				B0C1D2E3F4A5516C7D8E9F0A /* SupabaseClient.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -472,6 +478,8 @@
 				24583F48003945C7AA79CCB6 /* UploadService.swift in Sources */,
 				3B921F743BD34585BB781FA4 /* UploadStatusView.swift in Sources */,
 				3E7DE70D83B34D2CBAE46B73 /* APIClient.swift in Sources */,
+				E7F8A9B0C1D22E3F4A5B6C7D /* SupabaseConfig.swift in Sources */,
+				A9B0C1D2E3F4405B6C7D8E9F /* SupabaseClient.swift in Sources */,
 				732EA26B1BD54B27934C8031 /* Endpoints.swift in Sources */,
 				8524564309F445DA97BF61B8 /* FilePaths.swift in Sources */,
 				26EC437C21C5458AA82871F1 /* LocalScanStore.swift in Sources */,

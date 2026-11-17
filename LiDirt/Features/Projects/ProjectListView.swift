@@ -86,6 +86,7 @@ struct ProjectListView: View {
             Text("Removes the project and all of its local scans. This cannot be undone.")
         }
         .task {
+            await environment.syncFromCloud()
             await environment.uploadQueue.processAll()
         }
     }
@@ -95,6 +96,9 @@ struct ProjectListView: View {
         for scan in removed.scanSummaries {
             environment.localScanStore.deletePackage(scanId: scan.id)
             environment.uploadQueue.remove(scan.id)
+        }
+        Task {
+            try? await SupabaseClient.shared.deleteProject(id: removed.id)
         }
     }
 
@@ -139,13 +143,14 @@ struct ProjectListView: View {
                     Button("Create") {
                         let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !name.isEmpty else { return }
-                        _ = environment.projectStore.createProject(
+                        let project = environment.projectStore.createProject(
                             name: name,
                             address: newAddress.isEmpty ? nil : newAddress
                         )
                         newName = ""
                         newAddress = ""
                         showNewProject = false
+                        Task { await environment.pushProject(project) }
                     }
                     .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -164,13 +169,26 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("API") {
-                    TextField("Base URL", text: $apiText)
+                Section("Supabase") {
+                    Text(SupabaseConfig.projectURL.absoluteString)
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textSecondary)
+                    if let email = environment.authService.currentUser?.email {
+                        Text(email)
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textMuted)
+                    }
+                    Button("Sync projects now") {
+                        Task { await environment.syncFromCloud() }
+                    }
+                    if let message = environment.cloudSyncMessage {
+                        Text(message)
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textMuted)
+                    }
+                    TextField("Legacy API base (optional)", text: $apiText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Text("Default uses local stub acceptance when host is api.lidirt.example.")
-                        .font(LiDirtTypography.caption)
-                        .foregroundStyle(LiDirtColors.textMuted)
                 }
                 Section("Scan HUD") {
                     Toggle("Show GPS box on scan", isOn: $environment.showScanGPSBanner)
@@ -214,8 +232,10 @@ struct SettingsView: View {
                 }
                 Section {
                     Button("Sign out", role: .destructive) {
-                        environment.applyAuthToken(nil)
-                        dismiss()
+                        Task {
+                            await environment.signOut()
+                            dismiss()
+                        }
                     }
                 }
             }

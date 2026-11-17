@@ -18,6 +18,21 @@ final class UploadService: Sendable {
     }
 
     func upload(package: ScanPackage, projectId: UUID) async throws -> UploadAccepted {
+        // Prefer Supabase when signed in.
+        if let session = await SupabaseClient.shared.currentSession() {
+            let scanId = UUID(uuidString: package.metadata.scanId) ?? UUID()
+            return try await SupabaseClient.shared.uploadScanPackage(
+                scanId: scanId,
+                projectId: projectId,
+                ownerId: session.userId,
+                package: package,
+                qualityScore: package.metadata.quality.qualityScore,
+                coverageRatio: package.metadata.quality.coverageRatio,
+                passCount: package.metadata.capture.passCount
+            )
+        }
+
+        // Legacy multipart fallback (stub or custom API host).
         let metadataData = try Data(contentsOf: package.metadataURL)
         let heightmapData = try Data(contentsOf: package.heightmapURL)
 

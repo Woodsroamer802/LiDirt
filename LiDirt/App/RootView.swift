@@ -2,15 +2,19 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
-    @State private var showLogin = false
+    @State private var isRestoring = true
 
     var body: some View {
         Group {
-            if environment.authToken == nil {
-                LoginView(onContinue: {
-                    // Stub auth: accept any email and mint a local token.
-                    environment.applyAuthToken("stub-\(UUID().uuidString)")
-                })
+            if isRestoring {
+                ZStack {
+                    LiDirtColors.gunmetal.ignoresSafeArea()
+                    ProgressView("Checking session…")
+                        .tint(LiDirtColors.constructionYellow)
+                        .foregroundStyle(LiDirtColors.textSecondary)
+                }
+            } else if environment.authToken == nil {
+                LoginView(onAuthenticated: {})
             } else {
                 NavigationStack {
                     ProjectListView()
@@ -19,6 +23,17 @@ struct RootView: View {
         }
         .tint(LiDirtColors.constructionYellow)
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
+        .task {
+            await restoreIfNeeded()
+        }
+    }
+
+    private func restoreIfNeeded() async {
+        defer { isRestoring = false }
+        if let session = await environment.authService.restoreSession() {
+            environment.applyAuthToken(session.accessToken)
+            await environment.syncFromCloud()
+        }
     }
 }
 
