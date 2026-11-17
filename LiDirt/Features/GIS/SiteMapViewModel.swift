@@ -53,6 +53,10 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     @Published var showContourMapViewer = false
     /// When true, hide Apple base tiles and show only the fused contour overlay on the Job Site map.
     @Published var fusedMapOnly = false
+    /// OpenStreetMap building outlines (shaded) on the Job Site / fused map.
+    @Published var showBuildings = true
+    @Published var buildingFootprints: [BuildingFootprint] = []
+    @Published var isLoadingBuildings = false
     /// 3DEP-only foundation DEM when no LiDAR scan is loaded yet.
     private var foundationHeightmap: HeightmapResult?
     private var foundationOrigin: CLLocationCoordinate2D?
@@ -66,10 +70,12 @@ final class SiteMapViewModel: NSObject, ObservableObject {
     private let lidarHeightmap: HeightmapResult?
     private let orientation: ScanOrientationSnapshot
     private let elevationService: USGSElevationService
+    private let buildingService: BuildingFootprintService
     private let offlineStore: JobSiteOfflineStore
     private var fuseTask: Task<Void, Never>?
     private var offlineTask: Task<Void, Never>?
     private var contourTask: Task<Void, Never>?
+    private var buildingsTask: Task<Void, Never>?
     private var didFitScanRegion = false
     private var cachedPreparedKey: String?
     private var cachedPreparedDEM: HeightmapResult?
@@ -86,6 +92,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         jobSite: JobSiteBounds? = nil,
         initialAddress: String? = nil,
         elevationService: USGSElevationService = USGSElevationService(),
+        buildingService: BuildingFootprintService = BuildingFootprintService(),
         offlineStore: JobSiteOfflineStore = JobSiteOfflineStore()
     ) {
         self.projectName = projectName
@@ -97,6 +104,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         self.jobSite = jobSite
         self.addressText = initialAddress ?? ""
         self.elevationService = elevationService
+        self.buildingService = buildingService
         self.offlineStore = offlineStore
         if let jobSite, jobSite.isValid {
             // Assign stored properties directly — cannot call methods before super.init.
@@ -129,12 +137,14 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         refreshOfflineAvailability()
         rebuildContours()
+        refreshBuildingFootprints()
     }
 
     func onAppear() {
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
         refreshOfflineAvailability()
+        refreshBuildingFootprints()
         if lidarHeightmap == nil {
             statusMessage = "USGS topo — set a Job Site, then open Contour map for a sharp pad view."
             startFoundationMapIfNeeded()
@@ -152,6 +162,18 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         offlineTask?.cancel()
         contourTask?.cancel()
         foundationTask?.cancel()
+        buildingsTask?.cancel()
+    }
+
+    func setShowBuildings(_ enabled: Bool) {
+        showBuildings = enabled
+        if enabled {
+            refreshBuildingFootprints(force: buildingFootprints.isEmpty)
+            // Rebake fused image so Contour map viewer includes shading.
+            if fusedMapImage != nil {
+                rebuildContours()
+            }
+        }
     }
 
     var hasContourMapImage: Bool {
@@ -250,12 +272,23 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         statusMessage = "Downloading USGS elevation for contour map…"
         let interval = contourIntervalInches
         let showLines = showContours
+        let wantBuildings = showBuildings
+        let buildingService = buildingService
         foundationTask = Task {
             do {
-                let fetched = try await elevationService.fetchFoundationDEM(covering: bounds)
+                async let demFetch = elevationService.fetchFoundationDEM(covering: bounds)
+                async let buildingFetch: [BuildingFootprint] = {
+                    guard wantBuildings else { return [] }
+                    return (try? await buildingService.fetchBuildings(covering: bounds)) ?? []
+                }()
+                let fetched = try await demFetch
+                let buildings = await buildingFetch
                 if Task.isCancelled { return }
                 foundationHeightmap = fetched.heightmap
                 foundationOrigin = fetched.origin
+                if wantBuildings, !buildings.isEmpty {
+                    buildingFootprints = buildings
+                }
                 let prepared = await Task.detached(priority: .userInitiated) {
                     DEMGroundSmoother.prepareForContours(fetched.heightmap, mode: .smoothedGround)
                 }.value
@@ -266,7 +299,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                         origin: fetched.origin,
                         bounds: bounds,
                         intervalInches: interval,
-                        drawContours: showLines
+                        drawContours: showLines,
+                        buildings: buildings
                     )
                 }.value
                 if Task.isCancelled { return }
@@ -666,6 +700,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 rotationNote
             )
         }
+        refreshBuildingFootprints(force: true)
         // Re-render fused surface for the new outline size.
         if lidarHeightmap != nil, orientation.latitude != nil {
             rebuildContours()
@@ -681,6 +716,49 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             foundationOrigin = nil
             fusedMapImage = nil
             fusedMapBounds = nil
+            buildingFootprints = []
+        }
+    }
+
+    /// Load OSM building footprints for the current Job Site (or map region).
+    func refreshBuildingFootprints(force: Bool = false) {
+        guard showBuildings else { return }
+        let queryBounds: (south: Double, west: Double, north: Double, east: Double)?
+        if let jobSite, jobSite.isValid {
+            queryBounds = (jobSite.south, jobSite.west, jobSite.north, jobSite.east)
+        } else {
+            let c = region.center
+            let dLat = max(region.span.latitudeDelta * 0.5, 0.0004)
+            let dLon = max(region.span.longitudeDelta * 0.5, 0.0004)
+            queryBounds = (c.latitude - dLat, c.longitude - dLon, c.latitude + dLat, c.longitude + dLon)
+        }
+        guard let queryBounds else { return }
+        if !force, !buildingFootprints.isEmpty, isLoadingBuildings { return }
+
+        buildingsTask?.cancel()
+        isLoadingBuildings = true
+        let service = buildingService
+        buildingsTask = Task {
+            do {
+                let footprints = try await service.fetchBuildings(
+                    south: queryBounds.south,
+                    west: queryBounds.west,
+                    north: queryBounds.north,
+                    east: queryBounds.east
+                )
+                if Task.isCancelled { return }
+                let changed = footprints != buildingFootprints
+                buildingFootprints = footprints
+                isLoadingBuildings = false
+                // Bake into fused image once footprints arrive.
+                if changed, fusedMapImage != nil || foundationHeightmap != nil || fusedResult != nil {
+                    rebuildContours()
+                }
+            } catch {
+                if Task.isCancelled { return }
+                isLoadingBuildings = false
+                // Soft-fail — map still works without buildings.
+            }
         }
     }
 
@@ -819,6 +897,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             }
             if Task.isCancelled { return }
 
+            let buildings = showBuildings ? buildingFootprints : []
             var rendered: FusedSiteMapRenderer.RenderedMap?
             if buildSurface, let renderBounds {
                 rendered = await Task.detached(priority: .userInitiated) {
@@ -827,7 +906,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                         origin: origin,
                         bounds: renderBounds,
                         intervalInches: interval,
-                        drawContours: showLines
+                        drawContours: showLines,
+                        buildings: buildings
                     )
                 }.value
             }
