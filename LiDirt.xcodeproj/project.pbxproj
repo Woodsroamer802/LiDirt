@@ -76,6 +76,9 @@
 		A11A11B01C01D01E01F01005 /* SiteModel3DViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01005 /* SiteModel3DViewModel.swift */; };
 		A11A11B01C01D01E01F01006 /* SiteModel3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01006 /* SiteModel3DView.swift */; };
 		A11A11B01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift */; };
+		B22B22B01C01D01E01F02001 /* MaterialCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */; };
+		B22B22B01C01D01E01F02002 /* MaterialsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */; };
+		B22B22B01C01D01E01F02003 /* MaterialsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -152,6 +155,9 @@
 		A11A11F01C01D01E01F01005 /* SiteModel3DViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteModel3DViewModel.swift; sourceTree = "<group>"; };
 		A11A11F01C01D01E01F01006 /* SiteModel3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteModel3DView.swift; sourceTree = "<group>"; };
 		A11A11F01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposedGradeApplicatorTests.swift; sourceTree = "<group>"; };
+		B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialCatalog.swift; sourceTree = "<group>"; };
+		B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculator.swift; sourceTree = "<group>"; };
+		B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -254,6 +260,8 @@
 				A11A11F01C01D01E01F01004 /* ShapeFlagModels.swift */,
 				A11A11F01C01D01E01F01005 /* SiteModel3DViewModel.swift */,
 				A11A11F01C01D01E01F01006 /* SiteModel3DView.swift */,
+				B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */,
+				B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */,
 			);
 			path = Grade3D;
 			sourceTree = "<group>";
@@ -338,6 +346,7 @@
 			isa = PBXGroup;
 			children = (
 				A11A11F01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift */,
+				B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */,
 				ED45C59B25CE47D3A60F2636,
 				473E3E8F5D83435B80B69B37,
 				6991E3CE7AA84587AA238DBC,
@@ -541,6 +550,8 @@
 				A11A11B01C01D01E01F01004 /* ShapeFlagModels.swift in Sources */,
 				A11A11B01C01D01E01F01005 /* SiteModel3DViewModel.swift in Sources */,
 				A11A11B01C01D01E01F01006 /* SiteModel3DView.swift in Sources */,
+				B22B22B01C01D01E01F02001 /* MaterialCatalog.swift in Sources */,
+				B22B22B01C01D01E01F02002 /* MaterialsCalculator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -560,6 +571,7 @@
 				D4E5F6A7B8C94A1CD3E4F5A6 /* DEMGroundSmootherTests.swift in Sources */,
 				F2A3B4C5D6E71C9F1A2B3C4D /* JobSiteBoundsTests.swift in Sources */,
 				A11A11B01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift in Sources */,
+				B22B22B01C01D01E01F02003 /* MaterialsCalculatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

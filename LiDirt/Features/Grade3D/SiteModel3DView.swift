@@ -55,13 +55,78 @@ struct SiteModel3DView: View {
                 presetsSection
                 if viewModel.selectedCutout != nil {
                     cutoutEditSection
+                    assemblyPickerSection
                 }
+                materialsSection
                 flagsSection
             }
             .padding(16)
         }
-        .frame(maxHeight: 340)
+        .frame(maxHeight: 380)
         .background(LiDirtColors.gunmetalElevated)
+    }
+
+    private var assemblyPickerSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Material assembly")
+                .font(LiDirtTypography.headline)
+                .foregroundStyle(LiDirtColors.textPrimary)
+            Text(viewModel.selectedAssembly?.helpText ?? "Pick how this shape is built.")
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+            Picker(
+                "Assembly",
+                selection: Binding(
+                    get: { viewModel.selectedAssembly?.id ?? MaterialAssembly.slabOnLimestone2.id },
+                    set: { newId in
+                        if let assembly = MaterialAssembly.catalog.first(where: { $0.id == newId }) {
+                            viewModel.setAssemblyForSelected(assembly)
+                        }
+                    }
+                )
+            ) {
+                ForEach(MaterialAssembly.catalog) { assembly in
+                    Text(assembly.displayName).tag(assembly.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(LiDirtColors.constructionYellow)
+        }
+    }
+
+    private var materialsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Materials calculator")
+                .font(LiDirtTypography.headline)
+                .foregroundStyle(LiDirtColors.textPrimary)
+            Text(viewModel.materialsEstimate.assemblyName)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+
+            if viewModel.materialsEstimate.lineItems.isEmpty {
+                Text("Place a slab / dig to see dirt removed and gravel / concrete infill.")
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textSecondary)
+            } else {
+                ForEach(viewModel.materialsEstimate.lineItems) { item in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.summary)
+                            .font(LiDirtTypography.body)
+                            .foregroundStyle(LiDirtColors.textPrimary)
+                        Text(item.detail)
+                            .font(LiDirtTypography.caption)
+                            .foregroundStyle(LiDirtColors.textMuted)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+
+            ForEach(viewModel.materialsEstimate.notes, id: \.self) { note in
+                Text(note)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textMuted)
+            }
+        }
     }
 
     private var presetsSection: some View {
