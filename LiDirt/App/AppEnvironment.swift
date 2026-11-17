@@ -10,6 +10,7 @@ final class AppEnvironment: ObservableObject {
     @Published var contourSurfaceMode: ContourSurfaceMode
     /// When false (default), scan HUD hides the GPS/orientation box; open it from the location button or Settings.
     @Published var showScanGPSBanner: Bool
+    @Published var cloudSyncMessage: String?
 
     let projectStore: ProjectStore
     let authService: AuthService
@@ -23,7 +24,7 @@ final class AppEnvironment: ObservableObject {
     private static let contourSurfaceModeKey = "contourSurfaceMode"
 
     init(
-        apiBaseURL: URL = URL(string: "https://api.lidirt.example/v1")!,
+        apiBaseURL: URL = SupabaseConfig.projectURL,
         authToken: String? = nil,
         preferredUnits: UnitsPreference = .usCustomary,
         preferredContourIntervalInches: Double? = nil,
@@ -65,7 +66,7 @@ final class AppEnvironment: ObservableObject {
         self.localScanStore = LocalScanStore(paths: paths)
         self.projectStore = ProjectStore(paths: paths)
         self.authService = AuthService()
-        let client = APIClient(baseURL: apiBaseURL, tokenBox: tokenBox)
+        let client = APIClient(baseURL: apiBaseURL, tokenBox: tokenBox, useLocalStub: false)
         self.uploadQueue = UploadQueue(paths: paths, uploadService: UploadService(client: client))
     }
 
@@ -87,12 +88,41 @@ final class AppEnvironment: ObservableObject {
     func applyAuthToken(_ token: String?) {
         authToken = token
         tokenBox.set(token)
-        uploadQueue.updateClient(APIClient(baseURL: apiBaseURL, tokenBox: tokenBox))
+        uploadQueue.updateClient(APIClient(baseURL: apiBaseURL, tokenBox: tokenBox, useLocalStub: false))
     }
 
     func updateAPIBaseURL(_ url: URL) {
         apiBaseURL = url
-        uploadQueue.updateClient(APIClient(baseURL: url, tokenBox: tokenBox))
+        uploadQueue.updateClient(APIClient(baseURL: url, tokenBox: tokenBox, useLocalStub: false))
+    }
+
+    /// Pull projects + scans from Supabase into the local store (keeps local package paths).
+    func syncFromCloud() async {
+        guard authToken != nil else { return }
+        do {
+            let remote = try await SupabaseClient.shared.fetchProjects()
+            projectStore.replaceFromRemote(remote)
+            cloudSyncMessage = "Synced \(remote.count) project(s) from Supabase."
+        } catch {
+            cloudSyncMessage = "Cloud sync failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// Push one project row (and keep going offline-first if it fails).
+    func pushProject(_ project: Project) async {
+        guard let ownerId = authService.currentUser?.id ?? (await SupabaseClient.shared.currentSession())?.userId else {
+            return
+        }
+        do {
+            try await SupabaseClient.shared.upsertProject(project, ownerId: ownerId)
+        } catch {
+            cloudSyncMessage = "Project saved locally; cloud push failed: \(error.localizedDescription)"
+        }
+    }
+
+    func signOut() async {
+        await authService.logout()
+        applyAuthToken(nil)
     }
 }
 

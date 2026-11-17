@@ -50,6 +50,7 @@ struct ProjectDetailView: View {
                         guard var updated = environment.projectStore.project(id: projectId) else { return }
                         updated.jobSite = bounds
                         environment.projectStore.update(updated)
+                        Task { await environment.pushProject(updated) }
                     }
                 )
             }

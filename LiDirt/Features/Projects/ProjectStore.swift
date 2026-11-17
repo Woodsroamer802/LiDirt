@@ -88,6 +88,57 @@ final class ProjectStore: ObservableObject {
         return removed
     }
 
+    /// Merge remote Supabase projects/scans into local cache without wiping local package paths.
+    func replaceFromRemote(_ remote: [SupabaseRemoteProject]) {
+        var byId = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+        for row in remote {
+            var local = byId[row.id] ?? Project(
+                id: row.id,
+                name: row.name,
+                address: row.address,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+                scanSummaries: [],
+                jobSite: row.job_site
+            )
+            local.name = row.name
+            local.address = row.address
+            local.createdAt = row.created_at
+            local.updatedAt = row.updated_at
+            local.jobSite = row.job_site
+
+            let remoteScans = row.scans ?? []
+            var scanById = Dictionary(uniqueKeysWithValues: local.scanSummaries.map { ($0.id, $0) })
+            for scan in remoteScans {
+                var summary = scanById[scan.id] ?? ScanSummary(
+                    id: scan.id,
+                    projectId: scan.project_id,
+                    capturedAt: scan.captured_at,
+                    qualityScore: scan.quality_score,
+                    coverageRatio: scan.coverage_ratio,
+                    passCount: scan.pass_count,
+                    uploadStatus: ScanUploadStatus(rawValue: scan.upload_status) ?? .accepted,
+                    localPackagePath: nil
+                )
+                summary.capturedAt = scan.captured_at
+                summary.qualityScore = scan.quality_score
+                summary.coverageRatio = scan.coverage_ratio
+                summary.passCount = scan.pass_count
+                if summary.uploadStatus == .localOnly || summary.uploadStatus == .failed {
+                    summary.uploadStatus = ScanUploadStatus(rawValue: scan.upload_status) ?? .accepted
+                } else if scan.upload_status == "accepted" {
+                    summary.uploadStatus = .accepted
+                }
+                // Keep existing localPackagePath when present.
+                scanById[scan.id] = summary
+            }
+            local.scanSummaries = Array(scanById.values).sorted { $0.capturedAt > $1.capturedAt }
+            byId[row.id] = local
+        }
+        projects = Array(byId.values).sorted { $0.updatedAt > $1.updatedAt }
+        persist()
+    }
+
     private var projectsFileURL: URL {
         paths.projectsDirectory.appendingPathComponent("projects.json")
     }
