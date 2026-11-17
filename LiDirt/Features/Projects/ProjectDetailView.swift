@@ -442,6 +442,10 @@ struct ProjectDetailView: View {
                 packageHint = nil
                 uploadSheet = UploadSheetToken(id: payload.scanId)
                 let scanId = payload.scanId
+                // Scans RLS requires the parent project row to exist and be owned by the user.
+                if let project = environment.projectStore.project(id: payload.projectId) {
+                    await environment.pushProject(project)
+                }
                 await environment.uploadQueue.processAll()
                 if let accepted = environment.uploadQueue.items.first(where: { $0.id == scanId }) {
                     var updated = summary

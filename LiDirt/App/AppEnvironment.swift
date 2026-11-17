@@ -68,6 +68,11 @@ final class AppEnvironment: ObservableObject {
         self.authService = AuthService()
         let client = APIClient(baseURL: apiBaseURL, tokenBox: tokenBox, useLocalStub: false)
         self.uploadQueue = UploadQueue(paths: paths, uploadService: UploadService(client: client))
+        // Scans RLS requires the parent project row to exist under this user.
+        self.uploadQueue.ensureProject = { [weak self] projectId in
+            guard let self, let project = self.projectStore.project(id: projectId) else { return }
+            await self.pushProject(project)
+        }
     }
 
     func savePreferredContourIntervalInches(_ inches: Double) {

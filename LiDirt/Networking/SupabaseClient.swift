@@ -178,7 +178,7 @@ actor SupabaseClient {
             updated_at: project.updatedAt
         )
         _ = try await request(
-            path: "/rest/v1/projects",
+            path: "/rest/v1/projects?on_conflict=id",
             method: "POST",
             body: try encoder.encode(row),
             authed: true,
@@ -192,7 +192,7 @@ actor SupabaseClient {
     func deleteProject(id: UUID) async throws {
         try await refreshIfNeeded()
         _ = try await request(
-            path: "/rest/v1/projects?id=eq.\(id.uuidString)",
+            path: "/rest/v1/projects?id=eq.\(id.uuidString.lowercased())",
             method: "DELETE",
             body: nil,
             authed: true
@@ -209,7 +209,13 @@ actor SupabaseClient {
         passCount: Int
     ) async throws -> UploadAccepted {
         try await refreshIfNeeded()
-        let basePath = "\(ownerId.uuidString)/\(projectId.uuidString)/\(scanId.uuidString)"
+        // Storage RLS compares folder[1] to auth.uid()::text (lowercase).
+        // Swift UUID.uuidString is uppercase — always lowercase path segments.
+        let basePath = [
+            ownerId.uuidString.lowercased(),
+            projectId.uuidString.lowercased(),
+            scanId.uuidString.lowercased()
+        ].joined(separator: "/")
         let metadataPath = "\(basePath)/metadata.json"
         let heightmapPath = "\(basePath)/heightmap.f32"
 
@@ -245,7 +251,7 @@ actor SupabaseClient {
             metadata: ["format": "lidirt-scan-v1"]
         )
         _ = try await request(
-            path: "/rest/v1/scans",
+            path: "/rest/v1/scans?on_conflict=id",
             method: "POST",
             body: try encoder.encode(row),
             authed: true,
