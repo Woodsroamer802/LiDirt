@@ -25,6 +25,7 @@ struct ScanReviewView: View {
     @State private var showContours = true
     @State private var showDeleteConfirm = false
     @State private var showSiteMap = false
+    @State private var showSiteModel3D = false
     @State private var intervalText: String = ""
     @State private var activeIntervalInches: Double = ContourPreview.defaultIntervalInches
     @State private var surfaceMode: ContourSurfaceMode = .smoothedGround
@@ -90,6 +91,16 @@ struct ScanReviewView: View {
                         Task { await environment.pushProject(updated) }
                     }
                 )
+            }
+        }
+        .fullScreenCover(isPresented: $showSiteModel3D) {
+            NavigationStack {
+                if let heightmap {
+                    SiteModel3DView(heightmap: heightmap)
+                } else {
+                    Text("No DEM available for 3D.")
+                        .foregroundStyle(LiDirtColors.textSecondary)
+                }
             }
         }
         .toolbar {
@@ -235,7 +246,15 @@ struct ScanReviewView: View {
                 }
                 .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                Text("Finished map: tap Open Job Site map above, or Job Site map on the project screen.")
+                Button {
+                    showSiteModel3D = true
+                } label: {
+                    Label("Open 3D grade model", systemImage: "cube.transparent")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(LiDirtSecondaryButtonStyle())
+
+                Text("Contour map for print/pad view · 3D model to show finished work (slab, basement, pool) and shape flags.")
                     .font(LiDirtTypography.caption)
                     .foregroundStyle(LiDirtColors.constructionYellow)
             }

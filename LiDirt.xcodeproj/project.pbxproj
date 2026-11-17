@@ -69,6 +69,13 @@
 		B8C9D0E1F2A37E5B7C8D9E0F /* JobSiteOfflineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B8C9D0E1F26D4A6B7C8D9E /* JobSiteOfflineStore.swift */; };
 		D0E1F2A3B4C59A7D9E0F1A2B /* OfflineJobSiteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D0E1F2A3B48F6C8D9E0F1A /* OfflineJobSiteView.swift */; };
 		F2A3B4C5D6E71C9F1A2B3C4D /* JobSiteBoundsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2A3B4C5D60B8E0F1A2B3C /* JobSiteBoundsTests.swift */; };
+		A11A11B01C01D01E01F01001 /* ProposedGradeEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01001 /* ProposedGradeEdit.swift */; };
+		A11A11B01C01D01E01F01002 /* ProposedGradeApplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01002 /* ProposedGradeApplicator.swift */; };
+		A11A11B01C01D01E01F01003 /* TerrainMeshBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01003 /* TerrainMeshBuilder.swift */; };
+		A11A11B01C01D01E01F01004 /* ShapeFlagModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01004 /* ShapeFlagModels.swift */; };
+		A11A11B01C01D01E01F01005 /* SiteModel3DViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01005 /* SiteModel3DViewModel.swift */; };
+		A11A11B01C01D01E01F01006 /* SiteModel3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01006 /* SiteModel3DView.swift */; };
+		A11A11B01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A11F01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -138,6 +145,13 @@
 		A7B8C9D0E1F26D4A6B7C8D9E /* JobSiteOfflineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobSiteOfflineStore.swift; sourceTree = "<group>"; };
 		C9D0E1F2A3B48F6C8D9E0F1A /* OfflineJobSiteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineJobSiteView.swift; sourceTree = "<group>"; };
 		E1F2A3B4C5D60B8E0F1A2B3C /* JobSiteBoundsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobSiteBoundsTests.swift; sourceTree = "<group>"; };
+		A11A11F01C01D01E01F01001 /* ProposedGradeEdit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposedGradeEdit.swift; sourceTree = "<group>"; };
+		A11A11F01C01D01E01F01002 /* ProposedGradeApplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposedGradeApplicator.swift; sourceTree = "<group>"; };
+		A11A11F01C01D01E01F01003 /* TerrainMeshBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrainMeshBuilder.swift; sourceTree = "<group>"; };
+		A11A11F01C01D01E01F01004 /* ShapeFlagModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeFlagModels.swift; sourceTree = "<group>"; };
+		A11A11F01C01D01E01F01005 /* SiteModel3DViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteModel3DViewModel.swift; sourceTree = "<group>"; };
+		A11A11F01C01D01E01F01006 /* SiteModel3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteModel3DView.swift; sourceTree = "<group>"; };
+		A11A11F01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposedGradeApplicatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,6 +245,19 @@
 			path = GIS;
 			sourceTree = "<group>";
 		};
+		A11A11A01C01D01E01F01001 /* Grade3D */ = {
+			isa = PBXGroup;
+			children = (
+				A11A11F01C01D01E01F01001 /* ProposedGradeEdit.swift */,
+				A11A11F01C01D01E01F01002 /* ProposedGradeApplicator.swift */,
+				A11A11F01C01D01E01F01003 /* TerrainMeshBuilder.swift */,
+				A11A11F01C01D01E01F01004 /* ShapeFlagModels.swift */,
+				A11A11F01C01D01E01F01005 /* SiteModel3DViewModel.swift */,
+				A11A11F01C01D01E01F01006 /* SiteModel3DView.swift */,
+			);
+			path = Grade3D;
+			sourceTree = "<group>";
+		};
 		BCCDA8A1B30D4E26AC0DD2F9 /* Features */ = {
 			isa = PBXGroup;
 			children = (
@@ -239,6 +266,7 @@
 				7E979145F3094BC38C8BA58F,
 				8DF20AE4AE9945F0BCD7574B,
 				E59EE7655F6044AE8F3BF543 /* GIS */,
+				A11A11A01C01D01E01F01001 /* Grade3D */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -309,6 +337,7 @@
 		33E4C3D642EA4B3CA763D3F2 /* LiDirtTests */ = {
 			isa = PBXGroup;
 			children = (
+				A11A11F01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift */,
 				ED45C59B25CE47D3A60F2636,
 				473E3E8F5D83435B80B69B37,
 				6991E3CE7AA84587AA238DBC,
@@ -506,6 +535,12 @@
 				C0D1E2F3A4B5566778899001 /* BuildingFootprintService.swift in Sources */,
 				6E36F9F9EFB34C78855F0856 /* SiteMapViewModel.swift in Sources */,
 				A6A1505572524B0C8A0B3456 /* SiteMapView.swift in Sources */,
+				A11A11B01C01D01E01F01001 /* ProposedGradeEdit.swift in Sources */,
+				A11A11B01C01D01E01F01002 /* ProposedGradeApplicator.swift in Sources */,
+				A11A11B01C01D01E01F01003 /* TerrainMeshBuilder.swift in Sources */,
+				A11A11B01C01D01E01F01004 /* ShapeFlagModels.swift in Sources */,
+				A11A11B01C01D01E01F01005 /* SiteModel3DViewModel.swift in Sources */,
+				A11A11B01C01D01E01F01006 /* SiteModel3DView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -524,6 +559,7 @@
 				E5F60718293A4B5C6D7E8F90 /* FusedSiteMapRendererTests.swift in Sources */,
 				D4E5F6A7B8C94A1CD3E4F5A6 /* DEMGroundSmootherTests.swift in Sources */,
 				F2A3B4C5D6E71C9F1A2B3C4D /* JobSiteBoundsTests.swift in Sources */,
+				A11A11B01C01D01E01F01007 /* ProposedGradeApplicatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
