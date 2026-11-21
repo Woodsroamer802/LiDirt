@@ -81,6 +81,7 @@
 		B22B22B01C01D01E01F02003 /* MaterialsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */; };
 		C33C33B01C01D01E01F03001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03001 /* MainTabView.swift */; };
 		C33C33B01C01D01E01F03002 /* ModelsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03002 /* ModelsListView.swift */; };
+		D44D44B01C01D01E01F04001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44D44F01C01D01E01F04001 /* OverviewView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -162,6 +163,7 @@
 		B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculatorTests.swift; sourceTree = "<group>"; };
 		C33C33F01C01D01E01F03001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		C33C33F01C01D01E01F03002 /* ModelsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsListView.swift; sourceTree = "<group>"; };
+		D44D44F01C01D01E01F04001 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -191,6 +193,7 @@
 				E94BAA09028342B2BD2EDBD4,
 				C33C33F01C01D01E01F03001 /* MainTabView.swift */,
 				C33C33F01C01D01E01F03002 /* ModelsListView.swift */,
+				D44D44F01C01D01E01F04001 /* OverviewView.swift */,
 			);
 			path = Projects;
 			sourceTree = "<group>";

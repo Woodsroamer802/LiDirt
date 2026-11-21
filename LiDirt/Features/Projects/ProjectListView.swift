@@ -9,48 +9,38 @@ struct ProjectListView: View {
     @State private var pendingDeleteProject: Project?
     @State private var showDeleteProjectConfirm = false
 
-    var body: some View {
-        List {
-            Section {
-                deviceBanner
-            }
-            .listRowBackground(LiDirtColors.gunmetalElevated)
+    private var projects: [Project] {
+        environment.projectStore.projects.sorted { $0.updatedAt > $1.updatedAt }
+    }
 
-            Section("Projects") {
-                if environment.projectStore.projects.isEmpty {
-                    Text("No projects yet. Create one to start a field scan.")
-                        .foregroundStyle(LiDirtColors.textSecondary)
-                        .listRowBackground(LiDirtColors.gunmetalElevated)
-                }
-                ForEach(environment.projectStore.projects) { project in
-                    NavigationLink(value: project.id) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(project.name)
-                                .font(LiDirtTypography.headline)
-                                .foregroundStyle(LiDirtColors.textPrimary)
-                            Text("\(project.scanSummaries.count) scans")
-                                .font(LiDirtTypography.caption)
-                                .foregroundStyle(LiDirtColors.textMuted)
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                pageHeading
+                deviceBanner
+                if projects.isEmpty {
+                    emptyProjects
+                } else {
+                    ForEach(projects) { project in
+                        NavigationLink(value: project.id) {
+                            projectCard(project)
                         }
-                    }
-                    .listRowBackground(LiDirtColors.gunmetalElevated)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Delete", role: .destructive) {
-                            pendingDeleteProject = project
-                            showDeleteProjectConfirm = true
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button("Delete", role: .destructive) {
+                                pendingDeleteProject = project
+                                showDeleteProjectConfirm = true
+                            }
                         }
                     }
                 }
             }
+            .padding(20)
         }
-        .scrollContentBackground(.hidden)
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
-        .navigationTitle("LiDirt")
-        .navigationDestination(for: UUID.self) { id in
-            if let project = environment.projectStore.project(id: id) {
-                ProjectDetailView(projectId: project.id)
-            }
-        }
+        .navigationTitle("Projects")
+        .navigationBarTitleDisplayMode(.large)
+        // Destination is owned by MainTabView’s NavigationStack path so Overview deep-links work.
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -91,6 +81,93 @@ struct ProjectListView: View {
         }
     }
 
+    private var pageHeading: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("WORKSPACE")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(1.4)
+                .foregroundStyle(LiDirtColors.textMuted)
+            Text("Manage every site from first scan through final invoice.")
+                .font(LiDirtTypography.body)
+                .foregroundStyle(LiDirtColors.textMuted)
+        }
+    }
+
+    private func projectCard(_ project: Project) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(LiDirtColors.gunmetalDeep)
+                    .frame(width: 52, height: 52)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(LiDirtColors.constructionYellow.opacity(0.35), lineWidth: 1)
+                    )
+                Image(systemName: "map")
+                    .foregroundStyle(LiDirtColors.constructionYellow)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(project.name)
+                    .font(LiDirtTypography.headline)
+                    .foregroundStyle(LiDirtColors.textPrimary)
+                if let address = project.address, !address.isEmpty {
+                    Text(address)
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                        .lineLimit(1)
+                }
+                Text("\(project.scanSummaries.count) scans · updated \(project.updatedAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textSecondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(LiDirtColors.textMuted)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LiDirtColors.gunmetalElevated)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(LiDirtColors.hairline, lineWidth: 1)
+                )
+        )
+    }
+
+    private var emptyProjects: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "folder")
+                .font(.system(size: 36))
+                .foregroundStyle(LiDirtColors.constructionYellow)
+            Text("Projects workspace")
+                .font(LiDirtTypography.headline)
+                .foregroundStyle(LiDirtColors.textPrimary)
+            Text("Create a project to start a field scan and build Contour maps + 3D models.")
+                .font(LiDirtTypography.body)
+                .foregroundStyle(LiDirtColors.textMuted)
+                .multilineTextAlignment(.center)
+            Button {
+                showNewProject = true
+            } label: {
+                Label("New project", systemImage: "plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(LiDirtPrimaryButtonStyle())
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LiDirtColors.gunmetalElevated)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(LiDirtColors.hairline, lineWidth: 1)
+                )
+        )
+    }
+
     private func deleteProject(_ project: Project) {
         guard let removed = environment.projectStore.deleteProject(id: project.id) else { return }
         for scan in removed.scanSummaries {
@@ -122,8 +199,17 @@ struct ProjectListView: View {
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textSecondary)
             }
+            Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LiDirtColors.gunmetalElevated)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(LiDirtColors.hairline, lineWidth: 1)
+                )
+        )
     }
 
     private var newProjectSheet: some View {
@@ -209,7 +295,7 @@ struct SettingsView: View {
                 Section("Contours") {
                     TextField("Interval (inches)", text: $contourIntervalText)
                         .keyboardType(.decimalPad)
-                    Text("Used on scan review and the fused map. Default 0.125 in (1/8 in).")
+                    Text("Used on scan review and the Contour map. Default 0.125 in (1/8 in).")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
                     Picker("Ground detail", selection: $environment.contourSurfaceMode) {
