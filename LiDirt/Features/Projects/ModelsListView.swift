@@ -85,7 +85,7 @@ struct ModelsListView: View {
                 .font(LiDirtTypography.body)
                 .foregroundStyle(LiDirtColors.textMuted)
                 .multilineTextAlignment(.center)
-            Text("Use the Projects tab to start a scan.")
+            Text("Go back to Overview → Projects to start a scan.")
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textSecondary)
         }

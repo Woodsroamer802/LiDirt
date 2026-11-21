@@ -22,7 +22,7 @@ struct ProjectListView: View {
                     emptyProjects
                 } else {
                     ForEach(projects) { project in
-                        NavigationLink(value: project.id) {
+                        NavigationLink(value: WorkspaceRoute.project(project.id)) {
                             projectCard(project)
                         }
                         .buttonStyle(.plain)
@@ -40,7 +40,6 @@ struct ProjectListView: View {
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
         .navigationTitle("Projects")
         .navigationBarTitleDisplayMode(.large)
-        // Destination is owned by MainTabView’s NavigationStack path so Overview deep-links work.
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
