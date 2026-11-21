@@ -135,9 +135,9 @@ enum MaterialsCalculator {
             notes.insert(String(format: "Total footprint ≈ %@.", formatArea(totalArea)), at: 0)
         }
         notes.append("Quantities are planning estimates — not a certified takeoff.")
-        notes.append(priceCatalog.notes.deliveryFees)
-        notes.append(priceCatalog.notes.concreteShortLoad)
         notes.append("Prices: \(priceCatalog.region) (yard pickup averages).")
+        notes.append("Aggregate rates are yard pickup; add delivery per truckload as needed.")
+        notes.append("Ready-mix under ~7–9 yd³ may include a short-load fee.")
 
         let pricedAvg = items.compactMap(\.priceQuote?.extendedAvg).reduce(0, +)
         let hasPriced = items.contains { $0.priceQuote != nil }

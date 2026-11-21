@@ -1,85 +1,53 @@
 import SwiftUI
 
-/// Read-only regional material Price Book (OH / PA / WV yard rates).
+/// Simple browsable Price Book from Overview.
 struct PriceBookView: View {
     private let catalog = RegionalPriceCatalog.default
 
     var body: some View {
-        List {
-            regionSection
-            ForEach(catalog.categories, id: \.self) { category in
-                Section {
-                    ForEach(catalog.materials(in: category)) { item in
-                        PriceBookItemRow(item: item)
-                    }
-                } header: {
-                    Text(category)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(catalog.region)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textMuted)
+
+                ForEach(catalog.categories, id: \.self) { category in
+                    categoryBlock(category)
                 }
             }
+            .padding(20)
         }
-        .scrollContentBackground(.hidden)
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
         .navigationTitle("Price Book")
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var regionSection: some View {
-        Section {
-            Text(catalog.region)
-                .font(LiDirtTypography.body)
-                .foregroundStyle(LiDirtColors.textPrimary)
-                .listRowBackground(LiDirtColors.gunmetalElevated)
+    private func categoryBlock(_ category: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(category)
+                .font(LiDirtTypography.headline)
+                .foregroundStyle(LiDirtColors.constructionYellow)
 
-            Text(catalog.notes.regionalNaming)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
-                .listRowBackground(LiDirtColors.gunmetalElevated)
-
-            Text(catalog.notes.deliveryFees)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
-                .listRowBackground(LiDirtColors.gunmetalElevated)
-
-            Text(catalog.notes.concreteShortLoad)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
-                .listRowBackground(LiDirtColors.gunmetalElevated)
-        } header: {
-            Text("Region")
+            ForEach(catalog.materials(in: category)) { item in
+                itemRow(item)
+            }
         }
     }
-}
 
-private struct PriceBookItemRow: View {
-    let item: PriceCatalogItem
-
-    private var priceLine: String {
-        "\(item.priceRangeSummary) · \(item.avgSummary)"
-    }
-
-    var body: some View {
+    private func itemRow(_ item: PriceCatalogItem) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(item.name)
                 .font(LiDirtTypography.body)
                 .foregroundStyle(LiDirtColors.textPrimary)
-
-            Text(priceLine)
+            Text(item.lineSummary)
                 .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.constructionYellow)
-
-            if !item.aliases.isEmpty {
-                Text(item.aliases.joined(separator: " · "))
-                    .font(LiDirtTypography.caption)
-                    .foregroundStyle(LiDirtColors.textMuted)
-            }
-
-            if let note = item.conversionNote {
-                Text(note)
-                    .font(LiDirtTypography.caption)
-                    .foregroundStyle(LiDirtColors.textMuted)
-            }
+                .foregroundStyle(LiDirtColors.textMuted)
         }
-        .padding(.vertical, 2)
-        .listRowBackground(LiDirtColors.gunmetalElevated)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(LiDirtColors.gunmetalElevated)
+        )
     }
 }
