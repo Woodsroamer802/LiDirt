@@ -78,4 +78,46 @@ final class MaterialsCalculatorTests: XCTestCase {
             accuracy: 1e-9
         )
     }
+
+    func testRegionalPriceQuoteOnSlab() {
+        let cutout = GradeCutout(
+            label: "Concrete slab",
+            shape: .rectangle,
+            mode: .setAbsoluteElevation,
+            widthFeet: 27,
+            lengthFeet: 10,
+            depthFeet: 10.0 / 12.0,
+            centerLocalX: 0,
+            centerLocalZ: 0
+        )
+        let estimate = MaterialsCalculator.estimate(
+            cutouts: [cutout],
+            assembliesByCutoutId: [cutout.id: .slabOnLimestone2],
+            demVolume: ProposedGradeVolume(cutCubicYards: 4, fillCubicYards: 0, cellsEdited: 20),
+            priceCatalog: .ohioPennsylvaniaWestVirginia
+        )
+
+        let gravel = estimate.lineItems.first { $0.material == .limestone2 }
+        XCTAssertNotNil(gravel?.priceQuote)
+        XCTAssertEqual(gravel!.priceQuote!.catalogId, "agg-57-2b")
+        // 5.75 yd³ × 1.45 t/yd³ × $45/ton
+        let expectedTons = 5.75 * 1.45
+        XCTAssertEqual(gravel!.priceQuote!.billableQuantity, expectedTons, accuracy: 0.05)
+        XCTAssertEqual(gravel!.priceQuote!.extendedAvg, expectedTons * 45, accuracy: 1)
+
+        let concrete = estimate.lineItems.first { $0.material == .concrete }
+        XCTAssertNotNil(concrete?.priceQuote)
+        XCTAssertEqual(concrete!.priceQuote!.catalogId, "conc-readymix-4000")
+        XCTAssertNotNil(estimate.estimatedMaterialCostAvg)
+        XCTAssertGreaterThan(estimate.estimatedMaterialCostAvg!, 0)
+    }
+
+    func testPriceCatalogHasExpectedCategories() {
+        let catalog = RegionalPriceCatalog.ohioPennsylvaniaWestVirginia
+        XCTAssertEqual(catalog.materials.count, 25)
+        XCTAssertTrue(catalog.categories.contains("Aggregates & Earthwork"))
+        XCTAssertTrue(catalog.categories.contains("Septic System Components"))
+        XCTAssertNotNil(catalog.item(id: "septic-riser-lid"))
+        XCTAssertEqual(catalog.item(id: "agg-57-2b")?.priceAvg, 45, accuracy: 0.01)
+    }
 }

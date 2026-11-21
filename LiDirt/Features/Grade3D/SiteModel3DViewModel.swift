@@ -26,7 +26,9 @@ final class SiteModel3DViewModel: ObservableObject {
         demFillCubicYards: 0,
         lineItems: [],
         assemblyName: "No assemblies",
-        notes: []
+        notes: [],
+        priceRegion: nil,
+        estimatedMaterialCostAvg: nil
     )
 
     init(heightmap: HeightmapResult) {

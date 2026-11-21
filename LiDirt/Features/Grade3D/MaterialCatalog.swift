@@ -34,11 +34,12 @@ enum MaterialKind: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     /// Loose / compacted bulk density factor for ordering (tons per compacted yd³). Optional.
+    /// Regional OH/PA/WV yards typically quote ~1.4–1.5 tons/yd³ for limestone.
     var tonsPerCubicYard: Double? {
         switch self {
-        case .limestone2: return 1.35
-        case .bankRunGravel: return 1.4
-        case .sand: return 1.3
+        case .limestone2: return 1.45
+        case .bankRunGravel: return 1.45
+        case .sand: return 1.35
         case .concrete, .excavatedDirt: return nil
         }
     }
@@ -153,6 +154,8 @@ struct MaterialLineItem: Identifiable, Equatable, Sendable {
     /// Optional secondary quantity (e.g. tons for gravel).
     var secondaryQuantity: Double?
     var secondaryUnit: MaterialUnit?
+    /// Regional Price Book extended cost when a catalog match exists.
+    var priceQuote: MaterialPriceQuote?
 
     init(
         id: UUID = UUID(),
@@ -161,7 +164,8 @@ struct MaterialLineItem: Identifiable, Equatable, Sendable {
         unit: MaterialUnit,
         detail: String,
         secondaryQuantity: Double? = nil,
-        secondaryUnit: MaterialUnit? = nil
+        secondaryUnit: MaterialUnit? = nil,
+        priceQuote: MaterialPriceQuote? = nil
     ) {
         self.id = id
         self.material = material
@@ -170,12 +174,16 @@ struct MaterialLineItem: Identifiable, Equatable, Sendable {
         self.detail = detail
         self.secondaryQuantity = secondaryQuantity
         self.secondaryUnit = secondaryUnit
+        self.priceQuote = priceQuote
     }
 
     var summary: String {
         var s = String(format: "%@ — %.2f %@", material.displayName, quantity, unit.displayName)
         if let sq = secondaryQuantity, let su = secondaryUnit {
             s += String(format: " (≈ %.2f %@)", sq, su.displayName)
+        }
+        if let quote = priceQuote {
+            s += " · " + quote.rangeSummary
         }
         return s
     }
@@ -188,6 +196,12 @@ struct MaterialsEstimate: Equatable, Sendable {
     var lineItems: [MaterialLineItem]
     var assemblyName: String
     var notes: [String]
+    var priceRegion: String?
+    var estimatedMaterialCostAvg: Double?
 
     var isEmpty: Bool { lineItems.isEmpty && demCutCubicYards <= 0 && demFillCubicYards <= 0 }
+
+    var pricedLineItems: [MaterialLineItem] {
+        lineItems.filter { $0.priceQuote != nil }
+    }
 }

@@ -116,8 +116,19 @@ struct SiteModel3DView: View {
                         Text(item.detail)
                             .font(LiDirtTypography.caption)
                             .foregroundStyle(LiDirtColors.textMuted)
+                        if let quote = item.priceQuote {
+                            Text(quote.catalogName)
+                                .font(LiDirtTypography.caption)
+                                .foregroundStyle(LiDirtColors.constructionYellow)
+                        }
                     }
                     .padding(.vertical, 2)
+                }
+                if let avg = viewModel.materialsEstimate.estimatedMaterialCostAvg {
+                    Text(String(format: "Est. materials (avg) ≈ $%.0f — yard pickup, excl. haul-off & delivery.", avg))
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.constructionYellow)
+                        .padding(.top, 4)
                 }
             }
 
