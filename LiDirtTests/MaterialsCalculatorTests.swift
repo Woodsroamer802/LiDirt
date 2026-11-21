@@ -114,10 +114,12 @@ final class MaterialsCalculatorTests: XCTestCase {
 
     func testPriceCatalogHasExpectedCategories() {
         let catalog = RegionalPriceCatalog.ohioPennsylvaniaWestVirginia
-        XCTAssertEqual(catalog.materials.count, 25)
+        XCTAssertEqual(catalog.materials.count, 26)
+        XCTAssertEqual(catalog.categories.count, 4)
         XCTAssertTrue(catalog.categories.contains("Aggregates & Earthwork"))
         XCTAssertTrue(catalog.categories.contains("Septic System Components"))
-        XCTAssertNotNil(catalog.item(id: "septic-riser-lid"))
+        XCTAssertNotNil(catalog.item(id: "septic-effluent-filter"))
         XCTAssertEqual(catalog.item(id: "agg-57-2b")?.priceAvg, 45, accuracy: 0.01)
+        XCTAssertEqual(catalog.item(id: "septic-effluent-filter")?.priceAvg, 70, accuracy: 0.01)
     }
 }
