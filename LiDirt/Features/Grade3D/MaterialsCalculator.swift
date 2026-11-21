@@ -8,7 +8,8 @@ enum MaterialsCalculator {
         cutouts: [GradeCutout],
         assembliesByCutoutId: [UUID: MaterialAssembly],
         demVolume: ProposedGradeVolume,
-        flaggedShapes: [FlagOutlinedShape] = []
+        flaggedShapes: [FlagOutlinedShape] = [],
+        priceCatalog: RegionalPriceCatalog = .default
     ) -> MaterialsEstimate {
         var items: [MaterialLineItem] = []
         var notes: [String] = []
@@ -107,6 +108,12 @@ enum MaterialsCalculator {
             if let tpy = material.tonsPerCubicYard {
                 tons = yd3 * tpy
             }
+            let quote = priceQuote(
+                for: material,
+                cubicYards: yd3,
+                tons: tons,
+                catalog: priceCatalog
+            )
             items.append(
                 MaterialLineItem(
                     material: material,
@@ -114,7 +121,8 @@ enum MaterialsCalculator {
                     unit: .cubicYards,
                     detail: detail.isEmpty ? "Layer volume × order factor" : detail,
                     secondaryQuantity: tons,
-                    secondaryUnit: tons == nil ? nil : .tons
+                    secondaryUnit: tons == nil ? nil : .tons,
+                    priceQuote: quote
                 )
             )
         }
@@ -127,6 +135,12 @@ enum MaterialsCalculator {
             notes.insert(String(format: "Total footprint ≈ %@.", formatArea(totalArea)), at: 0)
         }
         notes.append("Quantities are planning estimates — not a certified takeoff.")
+        notes.append(priceCatalog.notes.deliveryFees)
+        notes.append(priceCatalog.notes.concreteShortLoad)
+        notes.append("Prices: \(priceCatalog.region) (yard pickup averages).")
+
+        let pricedAvg = items.compactMap(\.priceQuote?.extendedAvg).reduce(0, +)
+        let hasPriced = items.contains { $0.priceQuote != nil }
 
         return MaterialsEstimate(
             footprintAreaSquareFeet: totalArea,
@@ -134,8 +148,27 @@ enum MaterialsCalculator {
             demFillCubicYards: demVolume.fillCubicYards,
             lineItems: items,
             assemblyName: name,
-            notes: notes
+            notes: notes,
+            priceRegion: priceCatalog.region,
+            estimatedMaterialCostAvg: hasPriced ? pricedAvg : nil
         )
+    }
+
+    static func priceQuote(
+        for material: MaterialKind,
+        cubicYards: Double,
+        tons: Double?,
+        catalog: RegionalPriceCatalog
+    ) -> MaterialPriceQuote? {
+        guard let catalogId = material.priceCatalogId,
+              let item = catalog.item(id: catalogId),
+              let qty = material.billableCatalogQuantity(
+                cubicYards: cubicYards,
+                tons: tons,
+                catalogUnit: item.unit
+              )
+        else { return nil }
+        return catalog.quote(itemId: catalogId, quantity: qty)
     }
 
     static func volumeCubicYards(areaSquareFeet: Double, thicknessFeet: Double) -> Double {

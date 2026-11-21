@@ -110,7 +110,7 @@ struct OverviewView: View {
     }
 
     private var quickLinks: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             NavigationLink(value: WorkspaceRoute.projects) {
                 Label("Projects", systemImage: "folder.fill")
                     .font(LiDirtTypography.caption)
@@ -121,6 +121,14 @@ struct OverviewView: View {
 
             NavigationLink(value: WorkspaceRoute.models) {
                 Label("3D Models", systemImage: "cube.transparent")
+                    .font(LiDirtTypography.caption)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(LiDirtSecondaryButtonStyle())
+
+            NavigationLink(value: WorkspaceRoute.priceBook) {
+                Label("Price Book", systemImage: "dollarsign.circle")
                     .font(LiDirtTypography.caption)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -169,12 +177,15 @@ struct OverviewView: View {
             }
             .buttonStyle(.plain)
 
-            metricCard(
-                title: "Estimates",
-                value: "—",
-                note: "Coming with materials / web ops",
-                icon: "function"
-            )
+            NavigationLink(value: WorkspaceRoute.priceBook) {
+                metricCard(
+                    title: "Price Book",
+                    value: String(format: "%02d", RegionalPriceCatalog.default.materials.count),
+                    note: "OH / PA / WV yard rates",
+                    icon: "dollarsign.circle"
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 

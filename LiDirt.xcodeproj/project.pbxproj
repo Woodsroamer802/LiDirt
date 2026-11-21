@@ -79,6 +79,8 @@
 		B22B22B01C01D01E01F02001 /* MaterialCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */; };
 		B22B22B01C01D01E01F02002 /* MaterialsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */; };
 		B22B22B01C01D01E01F02003 /* MaterialsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */; };
+		B22B22B01C01D01E01F02004 /* RegionalPriceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02004 /* RegionalPriceCatalog.swift */; };
+		B22B22B01C01D01E01F02005 /* PriceBookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02005 /* PriceBookView.swift */; };
 		C33C33B01C01D01E01F03001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03001 /* MainTabView.swift */; };
 		C33C33B01C01D01E01F03002 /* ModelsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03002 /* ModelsListView.swift */; };
 		D44D44B01C01D01E01F04001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44D44F01C01D01E01F04001 /* OverviewView.swift */; };
@@ -161,6 +163,8 @@
 		B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialCatalog.swift; sourceTree = "<group>"; };
 		B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculator.swift; sourceTree = "<group>"; };
 		B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculatorTests.swift; sourceTree = "<group>"; };
+		B22B22F01C01D01E01F02004 /* RegionalPriceCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionalPriceCatalog.swift; sourceTree = "<group>"; };
+		B22B22F01C01D01E01F02005 /* PriceBookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceBookView.swift; sourceTree = "<group>"; };
 		C33C33F01C01D01E01F03001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		C33C33F01C01D01E01F03002 /* ModelsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsListView.swift; sourceTree = "<group>"; };
 		D44D44F01C01D01E01F04001 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
@@ -194,6 +198,7 @@
 				C33C33F01C01D01E01F03001 /* MainTabView.swift */,
 				C33C33F01C01D01E01F03002 /* ModelsListView.swift */,
 				D44D44F01C01D01E01F04001 /* OverviewView.swift */,
+				B22B22F01C01D01E01F02005 /* PriceBookView.swift */,
 			);
 			path = Projects;
 			sourceTree = "<group>";
@@ -271,6 +276,7 @@
 				A11A11F01C01D01E01F01006 /* SiteModel3DView.swift */,
 				B22B22F01C01D01E01F02001 /* MaterialCatalog.swift */,
 				B22B22F01C01D01E01F02002 /* MaterialsCalculator.swift */,
+				B22B22F01C01D01E01F02004 /* RegionalPriceCatalog.swift */,
 			);
 			path = Grade3D;
 			sourceTree = "<group>";
@@ -561,6 +567,8 @@
 				A11A11B01C01D01E01F01006 /* SiteModel3DView.swift in Sources */,
 				B22B22B01C01D01E01F02001 /* MaterialCatalog.swift in Sources */,
 				B22B22B01C01D01E01F02002 /* MaterialsCalculator.swift in Sources */,
+				B22B22B01C01D01E01F02004 /* RegionalPriceCatalog.swift in Sources */,
+				B22B22B01C01D01E01F02005 /* PriceBookView.swift in Sources */,
 				C33C33B01C01D01E01F03001 /* MainTabView.swift in Sources */,
 				C33C33B01C01D01E01F03002 /* ModelsListView.swift in Sources */,
 				D44D44B01C01D01E01F04001 /* OverviewView.swift in Sources */,

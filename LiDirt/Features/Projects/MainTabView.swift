@@ -4,6 +4,7 @@ import SwiftUI
 enum WorkspaceRoute: Hashable {
     case projects
     case models
+    case priceBook
     case project(UUID)
 }
 
@@ -21,6 +22,8 @@ struct MainTabView: View {
                         ProjectListView()
                     case .models:
                         ModelsListView()
+                    case .priceBook:
+                        PriceBookView()
                     case .project(let id):
                         ProjectDetailView(projectId: id)
                     }
