@@ -1,11 +1,8 @@
 import SwiftUI
 
-/// Field Overview home — layout cues from Figma Make (greeting, metrics, recent projects).
+/// Field Overview home — everything reachable from here (no bottom tabs).
 struct OverviewView: View {
     @EnvironmentObject private var environment: AppEnvironment
-    @Binding var selectedTab: WorkspaceTab
-    var onOpenProject: (UUID) -> Void
-
     @State private var showSettings = false
 
     private var projects: [Project] {
@@ -32,6 +29,7 @@ struct OverviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
+                quickLinks
                 startScanCTA
                 metricGrid
                 recentProjects
@@ -111,10 +109,28 @@ struct OverviewView: View {
         }
     }
 
+    private var quickLinks: some View {
+        HStack(spacing: 10) {
+            NavigationLink(value: WorkspaceRoute.projects) {
+                Label("Projects", systemImage: "folder.fill")
+                    .font(LiDirtTypography.caption)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(LiDirtSecondaryButtonStyle())
+
+            NavigationLink(value: WorkspaceRoute.models) {
+                Label("3D Models", systemImage: "cube.transparent")
+                    .font(LiDirtTypography.caption)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(LiDirtSecondaryButtonStyle())
+        }
+    }
+
     private var startScanCTA: some View {
-        Button {
-            selectedTab = .projects
-        } label: {
+        NavigationLink(value: WorkspaceRoute.projects) {
             Label("Start new scan", systemImage: "viewfinder")
                 .frame(maxWidth: .infinity)
         }
@@ -123,24 +139,36 @@ struct OverviewView: View {
 
     private var metricGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            metricCard(
-                title: "Active projects",
-                value: String(format: "%02d", projects.count),
-                note: projects.isEmpty ? "Create your first site" : "\(projects.prefix(2).count) updated recently",
-                icon: "folder.fill"
-            )
-            metricCard(
-                title: "Scans on device",
-                value: String(format: "%02d", totalScans),
-                note: DeviceCapability.canStartScan ? "LiDAR ready" : "LiDAR required",
-                icon: "cube.transparent"
-            )
-            metricCard(
-                title: "3D models",
-                value: String(format: "%02d", packagedModelCount),
-                note: "Open from Models tab",
-                icon: "square.3.layers.3d.down.right"
-            )
+            NavigationLink(value: WorkspaceRoute.projects) {
+                metricCard(
+                    title: "Active projects",
+                    value: String(format: "%02d", projects.count),
+                    note: projects.isEmpty ? "Create your first site" : "\(min(projects.count, 2)) updated recently",
+                    icon: "folder.fill"
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: WorkspaceRoute.projects) {
+                metricCard(
+                    title: "Scans on device",
+                    value: String(format: "%02d", totalScans),
+                    note: DeviceCapability.canStartScan ? "LiDAR ready" : "LiDAR required",
+                    icon: "cube.transparent"
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: WorkspaceRoute.models) {
+                metricCard(
+                    title: "3D models",
+                    value: String(format: "%02d", packagedModelCount),
+                    note: "Open proposed-grade editor",
+                    icon: "square.3.layers.3d.down.right"
+                )
+            }
+            .buttonStyle(.plain)
+
             metricCard(
                 title: "Estimates",
                 value: "—",
@@ -203,11 +231,11 @@ struct OverviewView: View {
                         .foregroundStyle(LiDirtColors.textPrimary)
                 }
                 Spacer()
-                Button("View all") {
-                    selectedTab = .projects
+                NavigationLink(value: WorkspaceRoute.projects) {
+                    Text("View all")
+                        .font(LiDirtTypography.caption)
+                        .foregroundStyle(LiDirtColors.constructionYellow)
                 }
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.constructionYellow)
             }
 
             if projects.isEmpty {
@@ -219,9 +247,7 @@ struct OverviewView: View {
                     .background(panelBackground)
             } else {
                 ForEach(projects.prefix(4)) { project in
-                    Button {
-                        onOpenProject(project.id)
-                    } label: {
+                    NavigationLink(value: WorkspaceRoute.project(project.id)) {
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
