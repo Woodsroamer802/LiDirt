@@ -25,32 +25,32 @@ struct ModelsListView: View {
     }
 
     var body: some View {
-        Group {
-            if modelRows.isEmpty {
-                emptyState
-            } else {
-                List {
-                    Section {
-                        Text("Review scanned grade models, open proposed finish grades, and check materials.")
-                            .font(LiDirtTypography.caption)
-                            .foregroundStyle(LiDirtColors.textMuted)
-                            .listRowBackground(LiDirtColors.gunmetalElevated)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("WORKSPACE")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.4)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                    Text("Review point clouds, contours, and proposed finish grades.")
+                        .font(LiDirtTypography.body)
+                        .foregroundStyle(LiDirtColors.textMuted)
+                }
 
-                    Section("Models") {
-                        ForEach(modelRows) { row in
-                            Button {
-                                openModel(row)
-                            } label: {
-                                modelRowLabel(row)
-                            }
-                            .buttonStyle(.plain)
-                            .listRowBackground(LiDirtColors.gunmetalElevated)
+                if modelRows.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(modelRows) { row in
+                        Button {
+                            openModel(row)
+                        } label: {
+                            modelRowLabel(row)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
-                .scrollContentBackground(.hidden)
             }
+            .padding(20)
         }
         .background(LiDirtColors.gunmetal.ignoresSafeArea())
         .navigationTitle("3D Models")
@@ -81,23 +81,23 @@ struct ModelsListView: View {
             Text("3D Models workspace")
                 .font(LiDirtTypography.headline)
                 .foregroundStyle(LiDirtColors.textPrimary)
-            Text("Review point clouds, contours, and proposed finish grades. Finish a field scan to create your first model.")
+            Text("Finish a field scan to create your first model, then place slab / pool cutouts and check materials.")
                 .font(LiDirtTypography.body)
                 .foregroundStyle(LiDirtColors.textMuted)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
             Text("Use the Projects tab to start a scan.")
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textSecondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .padding(28)
+        .frame(maxWidth: .infinity)
+        .background(panelBackground)
     }
 
     private func modelRowLabel(_ row: SiteModelRow) -> some View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(LiDirtColors.gunmetalDeep)
                     .frame(width: 48, height: 48)
                 Image(systemName: "cube.transparent")
@@ -131,7 +131,17 @@ struct ModelsListView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(LiDirtColors.textMuted)
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .background(panelBackground)
+    }
+
+    private var panelBackground: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(LiDirtColors.gunmetalElevated)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(LiDirtColors.hairline, lineWidth: 1)
+            )
     }
 
     private func openModel(_ row: SiteModelRow) {
