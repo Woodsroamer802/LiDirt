@@ -6,11 +6,15 @@ struct PriceBookView: View {
 
     var body: some View {
         List {
-            Section(header: Text("Region")) {
-                PriceBookRegionBlock(catalog: catalog)
-            }
+            regionSection
             ForEach(catalog.categories, id: \.self) { category in
-                PriceBookCategorySection(category: category, items: catalog.materials(in: category))
+                Section {
+                    ForEach(catalog.materials(in: category)) { item in
+                        PriceBookItemRow(item: item)
+                    }
+                } header: {
+                    Text(category)
+                }
             }
         }
         .scrollContentBackground(.hidden)
@@ -18,56 +22,30 @@ struct PriceBookView: View {
         .navigationTitle("Price Book")
         .navigationBarTitleDisplayMode(.inline)
     }
-}
 
-private struct PriceBookRegionBlock: View {
-    let catalog: RegionalPriceCatalog
+    private var regionSection: some View {
+        Section {
+            Text(catalog.region)
+                .font(LiDirtTypography.body)
+                .foregroundStyle(LiDirtColors.textPrimary)
+                .listRowBackground(LiDirtColors.gunmetalElevated)
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            regionName
-            regionalNaming
-            deliveryFees
-            concreteShortLoad
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .listRowBackground(LiDirtColors.surface)
-    }
+            Text(catalog.notes.regionalNaming)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+                .listRowBackground(LiDirtColors.gunmetalElevated)
 
-    private var regionName: some View {
-        Text(catalog.region)
-            .font(LiDirtTypography.body)
-            .foregroundStyle(LiDirtColors.textPrimary)
-    }
+            Text(catalog.notes.deliveryFees)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+                .listRowBackground(LiDirtColors.gunmetalElevated)
 
-    private var regionalNaming: some View {
-        Text(catalog.notes.regionalNaming)
-            .font(LiDirtTypography.caption)
-            .foregroundStyle(LiDirtColors.textMuted)
-    }
-
-    private var deliveryFees: some View {
-        Text(catalog.notes.deliveryFees)
-            .font(LiDirtTypography.caption)
-            .foregroundStyle(LiDirtColors.textMuted)
-    }
-
-    private var concreteShortLoad: some View {
-        Text(catalog.notes.concreteShortLoad)
-            .font(LiDirtTypography.caption)
-            .foregroundStyle(LiDirtColors.textMuted)
-    }
-}
-
-private struct PriceBookCategorySection: View {
-    let category: String
-    let items: [PriceCatalogItem]
-
-    var body: some View {
-        Section(header: Text(category)) {
-            ForEach(items) { item in
-                PriceBookItemRow(item: item)
-            }
+            Text(catalog.notes.concreteShortLoad)
+                .font(LiDirtTypography.caption)
+                .foregroundStyle(LiDirtColors.textMuted)
+                .listRowBackground(LiDirtColors.gunmetalElevated)
+        } header: {
+            Text("Region")
         }
     }
 }
@@ -76,56 +54,32 @@ private struct PriceBookItemRow: View {
     let item: PriceCatalogItem
 
     private var priceLine: String {
-        item.priceRangeSummary + " · " + item.avgSummary
-    }
-
-    private var aliasesLine: String? {
-        guard !item.aliases.isEmpty else { return nil }
-        return item.aliases.joined(separator: " · ")
+        "\(item.priceRangeSummary) · \(item.avgSummary)"
     }
 
     var body: some View {
-        content
-            .padding(.vertical, 2)
-            .listRowBackground(LiDirtColors.surface)
-    }
-
-    private var content: some View {
         VStack(alignment: .leading, spacing: 4) {
-            nameLabel
-            priceLabel
-            aliasesLabel
-            conversionLabel
-        }
-    }
+            Text(item.name)
+                .font(LiDirtTypography.body)
+                .foregroundStyle(LiDirtColors.textPrimary)
 
-    private var nameLabel: some View {
-        Text(item.name)
-            .font(LiDirtTypography.body)
-            .foregroundStyle(LiDirtColors.textPrimary)
-    }
-
-    private var priceLabel: some View {
-        Text(priceLine)
-            .font(LiDirtTypography.caption)
-            .foregroundStyle(LiDirtColors.constructionYellow)
-    }
-
-    @ViewBuilder
-    private var aliasesLabel: some View {
-        if let aliasesLine {
-            Text(aliasesLine)
+            Text(priceLine)
                 .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
-        }
-    }
+                .foregroundStyle(LiDirtColors.constructionYellow)
 
-    @ViewBuilder
-    private var conversionLabel: some View {
-        if let note = item.conversionNote {
-            Text(note)
-                .font(LiDirtTypography.caption)
-                .foregroundStyle(LiDirtColors.textMuted)
+            if !item.aliases.isEmpty {
+                Text(item.aliases.joined(separator: " · "))
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textMuted)
+            }
+
+            if let note = item.conversionNote {
+                Text(note)
+                    .font(LiDirtTypography.caption)
+                    .foregroundStyle(LiDirtColors.textMuted)
+            }
         }
+        .padding(.vertical, 2)
+        .listRowBackground(LiDirtColors.gunmetalElevated)
     }
 }
