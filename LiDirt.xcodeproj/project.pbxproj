@@ -563,6 +563,7 @@
 				B22B22B01C01D01E01F02002 /* MaterialsCalculator.swift in Sources */,
 				C33C33B01C01D01E01F03001 /* MainTabView.swift in Sources */,
 				C33C33B01C01D01E01F03002 /* ModelsListView.swift in Sources */,
+				D44D44B01C01D01E01F04001 /* OverviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
