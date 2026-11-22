@@ -134,6 +134,14 @@ struct OverviewView: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(LiDirtSecondaryButtonStyle())
+
+            NavigationLink(value: WorkspaceRoute.liveMap) {
+                Label("Live map", systemImage: "location.north.line")
+                    .font(LiDirtTypography.caption)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(LiDirtSecondaryButtonStyle())
         }
     }
 

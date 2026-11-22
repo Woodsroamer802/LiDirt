@@ -47,7 +47,7 @@ struct SiteMapView: View {
     var body: some View {
         mapStack
             .background(LiDirtColors.gunmetal.ignoresSafeArea())
-            .navigationTitle(viewModel.isEditingJobSiteCrop ? "Adjust Job Site" : "Job Site map")
+            .navigationTitle(siteMapTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { siteMapToolbar }
             .interactiveDismissDisabled(viewModel.isEditingJobSiteCrop)
@@ -91,6 +91,12 @@ struct SiteMapView: View {
                 }
             }
             .onDisappear { viewModel.onDisappear() }
+    }
+
+    private var siteMapTitle: String {
+        if viewModel.isEditingJobSiteCrop { return "Adjust Job Site" }
+        if viewModel.fusedMapOnly { return "Job Site · Contour" }
+        return "Job Site map"
     }
 
     private var mapStack: some View {
@@ -148,14 +154,14 @@ struct SiteMapView: View {
                     Button {
                         viewModel.openContourMapViewer()
                     } label: {
-                        Label("Contour map", systemImage: "square.3.layers.3d.down.right")
+                        Label("Full-screen contour", systemImage: "square.3.layers.3d.down.right")
                     }
                     .disabled(!viewModel.canOpenContourMap || viewModel.isBuildingFusedMap)
                     Button {
                         viewModel.setFusedMapOnly(!viewModel.fusedMapOnly)
                     } label: {
                         Label(
-                            viewModel.fusedMapOnly ? "Show street map" : "Contour map only",
+                            viewModel.fusedMapOnly ? "Show live map underlay" : "Contour map only",
                             systemImage: viewModel.fusedMapOnly ? "map" : "map.fill"
                         )
                     }

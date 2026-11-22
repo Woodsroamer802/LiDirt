@@ -241,7 +241,7 @@ struct ScanReviewView: View {
                     applyInterval()
                     showSiteMap = true
                 } label: {
-                    Label("Open Job Site map", systemImage: "map")
+                    Label("Open Job Site · Contour map", systemImage: "square.3.layers.3d.down.right")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LiDirtSecondaryButtonStyle())
@@ -259,7 +259,7 @@ struct ScanReviewView: View {
                     .foregroundStyle(LiDirtColors.constructionYellow)
             }
 
-            Text("Type a contour interval (inches). Job Site map uses USGS 3DEP as foundation plus this LiDAR DEM. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
+            Text("Type a contour interval (inches). Job Site opens the Contour map (3DEP + this LiDAR). Live Apple Map is under Overview → Live map. Green cells met the sample goal (≥\(CoverageGoals.samplesForGoalMet)).")
                 .font(LiDirtTypography.caption)
                 .foregroundStyle(LiDirtColors.textMuted)
         }
