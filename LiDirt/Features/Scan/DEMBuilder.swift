@@ -1,16 +1,26 @@
 import Foundation
 import simd
 
+/// How to pick a cell elevation when building the heightmap.
+enum DEMCellElevationMode: String, Sendable {
+    /// Arithmetic mean of samples (as-scanned texture).
+    case mean
+    /// Prefer bare ground: blend toward the lowest sample in the cell (cuts grass / high spikes).
+    case lowBias
+}
+
 /// Mutable cell statistics for multi-pass averaging. Pure value math — no ARKit types.
 struct DEMCellStats: Sendable, Equatable {
     var sumZ: Double = 0
     var sumZ2: Double = 0
+    var minZ: Double = .greatestFiniteMagnitude
     var count: Int = 0
     var lastUpdated: Date = .distantPast
 
     mutating func addSample(_ elevation: Double, at date: Date = Date()) {
         sumZ += elevation
         sumZ2 += elevation * elevation
+        minZ = min(minZ, elevation)
         count += 1
         lastUpdated = date
     }
@@ -18,6 +28,19 @@ struct DEMCellStats: Sendable, Equatable {
     var mean: Double? {
         guard count > 0 else { return nil }
         return sumZ / Double(count)
+    }
+
+    /// 75% toward cell minimum, 25% mean — keeps pad shape while dropping high spikes.
+    var lowBiasElevation: Double? {
+        guard count > 0, let mean, minZ.isFinite else { return nil }
+        return 0.25 * mean + 0.75 * minZ
+    }
+
+    func elevation(mode: DEMCellElevationMode) -> Double? {
+        switch mode {
+        case .mean: return mean
+        case .lowBias: return lowBiasElevation
+        }
     }
 
     var variance: Double? {
@@ -120,7 +143,8 @@ enum DEMBuilder {
         cells: [DEMGridKey: DEMCellStats],
         cellSizeM: Double,
         minSamples: Int = defaultMinSamplesPerCell,
-        fillOneCellGaps: Bool = true
+        fillOneCellGaps: Bool = true,
+        elevationMode: DEMCellElevationMode = .lowBias
     ) -> HeightmapResult? {
         let qualifying = cells.filter { $0.value.count >= minSamples }
         guard !qualifying.isEmpty else { return nil }
@@ -142,14 +166,14 @@ enum DEMBuilder {
         var maxY = -Double.greatestFiniteMagnitude
 
         for (key, stats) in qualifying {
-            guard let mean = stats.mean else { continue }
+            guard let elev = stats.elevation(mode: elevationMode) else { continue }
             let col = key.ix - minIX
             let row = key.iz - minIZ
             let idx = row * width + col
-            elevations[idx] = Float(mean)
+            elevations[idx] = Float(elev)
             sampleCounts[idx] = stats.count
-            minY = min(minY, mean)
-            maxY = max(maxY, mean)
+            minY = min(minY, elev)
+            maxY = max(maxY, elev)
         }
 
         if fillOneCellGaps {

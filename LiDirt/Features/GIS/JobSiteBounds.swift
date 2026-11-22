@@ -169,12 +169,14 @@ struct JobSiteBounds: Codable, Equatable, Sendable, Hashable {
     static func from(
         heightmap: HeightmapResult,
         origin: CLLocationCoordinate2D,
-        paddingFactor: Double = 1.1
+        paddingFactor: Double = 1.1,
+        correctionYawRadians: Double = 0
     ) -> JobSiteBounds {
         let region = ContourMapGeoref.region(
             heightmap: heightmap,
             origin: origin,
-            paddingFactor: paddingFactor
+            paddingFactor: paddingFactor,
+            correctionYawRadians: correctionYawRadians
         )
         return from(region: region, shrinkFactor: 1.0)
     }

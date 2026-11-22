@@ -39,6 +39,7 @@ enum FusedSiteMapRenderer {
     }
 
     /// Render hillshade + optional contours over `bounds` from a local-meter heightmap and GPS origin.
+    /// - Parameter correctionYawRadians: legacy north-align fix when placing DEM on the map.
     static func render(
         heightmap: HeightmapResult,
         origin: CLLocationCoordinate2D,
@@ -46,7 +47,8 @@ enum FusedSiteMapRenderer {
         intervalInches: Double,
         drawContours: Bool = true,
         buildings: [BuildingFootprint] = [],
-        longEdge: CGFloat? = nil
+        longEdge: CGFloat? = nil,
+        correctionYawRadians: Double = 0
     ) -> RenderedMap? {
         guard bounds.isValid else { return nil }
         let size = pixelSize(for: bounds, longEdge: longEdge ?? longEdgePixels(for: bounds))
@@ -57,6 +59,8 @@ enum FusedSiteMapRenderer {
         var elevations = [Float](repeating: .nan, count: width * height)
         var minElev = Float.greatestFiniteMagnitude
         var maxElev = -Float.greatestFiniteMagnitude
+        // Map → DEM: undo the display correction so we sample the stored grid.
+        let sampleYaw = -correctionYawRadians
 
         for row in 0..<height {
             let v = (Double(row) + 0.5) / Double(height)
@@ -68,7 +72,12 @@ enum FusedSiteMapRenderer {
                     coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
                     origin: origin
                 )
-                if let elev = sampleBilinear(heightmap, x: local.x, z: local.z) {
+                let dem = ContourMapGeoref.correctedLocal(
+                    xEast: local.x,
+                    zNorth: local.z,
+                    yawRadians: sampleYaw
+                )
+                if let elev = sampleBilinear(heightmap, x: dem.x, z: dem.z) {
                     let f = Float(elev)
                     elevations[row * width + col] = f
                     minElev = min(minElev, f)
@@ -128,8 +137,24 @@ enum FusedSiteMapRenderer {
                 cg.setLineCap(.round)
 
                 for seg in segs {
-                    guard let a = pixel(localX: seg.ax, localZ: seg.az, origin: origin, bounds: bounds, width: width, height: height),
-                          let b = pixel(localX: seg.bx, localZ: seg.bz, origin: origin, bounds: bounds, width: width, height: height) else {
+                    guard let a = pixel(
+                        localX: seg.ax,
+                        localZ: seg.az,
+                        origin: origin,
+                        bounds: bounds,
+                        width: width,
+                        height: height,
+                        correctionYawRadians: correctionYawRadians
+                    ),
+                          let b = pixel(
+                            localX: seg.bx,
+                            localZ: seg.bz,
+                            origin: origin,
+                            bounds: bounds,
+                            width: width,
+                            height: height,
+                            correctionYawRadians: correctionYawRadians
+                          ) else {
                         continue
                     }
                     cg.move(to: a)
@@ -178,12 +203,14 @@ enum FusedSiteMapRenderer {
         origin: CLLocationCoordinate2D,
         bounds: JobSiteBounds,
         width: Int,
-        height: Int
+        height: Int,
+        correctionYawRadians: Double = 0
     ) -> CGPoint? {
         let coord = ContourMapGeoref.coordinate(
             localXMetersEast: localX,
             localZMetersNorth: localZ,
-            origin: origin
+            origin: origin,
+            correctionYawRadians: correctionYawRadians
         )
         return mapPixel(coordinate: coord, bounds: bounds, width: width, height: height)
     }

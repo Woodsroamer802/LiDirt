@@ -60,6 +60,8 @@ struct ScanMetadata: Codable, Equatable, Sendable {
         var accuracyDegrees: Double?
         var source: String
         var northAlignYawRadians: Double?
+        /// `"enu_subtract"` = correct yaw (θ − heading). Missing/older packages used θ + heading.
+        var northAlignConvention: String?
         var disclaimer: String
     }
 
@@ -174,6 +176,9 @@ enum ScanPackageWriter {
                     accuracyDegrees: orientation.headingAccuracyDegrees,
                     source: orientation.headingSource,
                     northAlignYawRadians: orientation.northAlignYawRadians,
+                    northAlignConvention: orientation.frameAlignedToNorth
+                        ? NorthAlignMath.conventionENUSubtract
+                        : nil,
                     disclaimer: orientation.disclaimer
                 ),
                 hooks: .init(usGisReady: false, controlPointsCount: controlPointsCount)
@@ -297,7 +302,8 @@ enum ScanPackageReader {
             headingSource: metadata.georef.heading.source,
             northAlignYawRadians: metadata.georef.heading.northAlignYawRadians,
             frameAlignedToNorth: metadata.frame.alignedToNorth,
-            disclaimer: metadata.georef.heading.disclaimer
+            disclaimer: metadata.georef.heading.disclaimer,
+            northAlignConvention: metadata.georef.heading.northAlignConvention
         )
         return (metadata, heightmap, orientation)
     }
