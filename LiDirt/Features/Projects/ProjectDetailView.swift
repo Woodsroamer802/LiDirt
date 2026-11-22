@@ -183,7 +183,7 @@ struct ProjectDetailView: View {
                     Button {
                         openContourMap(for: project)
                     } label: {
-                        Label("Job Site map", systemImage: "map")
+                        Label("Job Site · Contour map", systemImage: "square.3.layers.3d.down.right")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
@@ -196,7 +196,7 @@ struct ProjectDetailView: View {
                     }
                     .buttonStyle(LiDirtSecondaryButtonStyle())
 
-                    Text("Job Site map for contours · 3D Models tab (or Open 3D model) for proposed finish grades and materials.")
+                    Text("After a scan, Job Site opens the Contour surface. Use Overview → Live map for Apple Maps / GPS.")
                         .font(LiDirtTypography.caption)
                         .foregroundStyle(LiDirtColors.textMuted)
 
