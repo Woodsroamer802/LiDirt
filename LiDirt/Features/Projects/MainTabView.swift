@@ -5,6 +5,7 @@ enum WorkspaceRoute: Hashable {
     case projects
     case models
     case priceBook
+    case liveMap
     case project(UUID)
 }
 
@@ -24,6 +25,8 @@ struct MainTabView: View {
                         ModelsListView()
                     case .priceBook:
                         PriceBookView()
+                    case .liveMap:
+                        LiveMapView()
                     case .project(let id):
                         ProjectDetailView(projectId: id)
                     }

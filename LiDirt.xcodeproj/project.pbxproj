@@ -81,6 +81,7 @@
 		B22B22B01C01D01E01F02003 /* MaterialsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */; };
 		B22B22B01C01D01E01F02004 /* RegionalPriceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02004 /* RegionalPriceCatalog.swift */; };
 		B22B22B01C01D01E01F02005 /* PriceBookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02005 /* PriceBookView.swift */; };
+		B22B22B01C01D01E01F02006 /* LiveMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22B22F01C01D01E01F02006 /* LiveMapView.swift */; };
 		C33C33B01C01D01E01F03001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03001 /* MainTabView.swift */; };
 		C33C33B01C01D01E01F03002 /* ModelsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33C33F01C01D01E01F03002 /* ModelsListView.swift */; };
 		D44D44B01C01D01E01F04001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44D44F01C01D01E01F04001 /* OverviewView.swift */; };
@@ -165,6 +166,7 @@
 		B22B22F01C01D01E01F02003 /* MaterialsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsCalculatorTests.swift; sourceTree = "<group>"; };
 		B22B22F01C01D01E01F02004 /* RegionalPriceCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionalPriceCatalog.swift; sourceTree = "<group>"; };
 		B22B22F01C01D01E01F02005 /* PriceBookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceBookView.swift; sourceTree = "<group>"; };
+		B22B22F01C01D01E01F02006 /* LiveMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMapView.swift; sourceTree = "<group>"; };
 		C33C33F01C01D01E01F03001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		C33C33F01C01D01E01F03002 /* ModelsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsListView.swift; sourceTree = "<group>"; };
 		D44D44F01C01D01E01F04001 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
@@ -261,6 +263,7 @@
 				D1E2F3A4B5C6677889900122 /* BuildingFootprintService.swift */,
 				26EAC2060D2F42EFBC814183 /* SiteMapViewModel.swift */,
 				DFAFACE7688F4A44BAA959AF /* SiteMapView.swift */,
+				B22B22F01C01D01E01F02006 /* LiveMapView.swift */,
 			);
 			path = GIS;
 			sourceTree = "<group>";
@@ -559,6 +562,7 @@
 				C0D1E2F3A4B5566778899001 /* BuildingFootprintService.swift in Sources */,
 				6E36F9F9EFB34C78855F0856 /* SiteMapViewModel.swift in Sources */,
 				A6A1505572524B0C8A0B3456 /* SiteMapView.swift in Sources */,
+				B22B22B01C01D01E01F02006 /* LiveMapView.swift in Sources */,
 				A11A11B01C01D01E01F01001 /* ProposedGradeEdit.swift in Sources */,
 				A11A11B01C01D01E01F01002 /* ProposedGradeApplicator.swift in Sources */,
 				A11A11B01C01D01E01F01003 /* TerrainMeshBuilder.swift in Sources */,

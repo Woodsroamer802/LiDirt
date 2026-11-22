@@ -105,6 +105,11 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         self.elevationService = elevationService
         self.buildingService = buildingService
         self.offlineStore = offlineStore
+        // After a scan is applied, Job Site map is the contour surface (not Apple tiles).
+        if heightmap != nil {
+            self.fusedMapOnly = true
+            self.showFusedSurfaceMap = true
+        }
         if let jobSite, jobSite.isValid {
             // Assign stored properties directly — cannot call methods before super.init.
             self.outlineWidthFeet = JobSiteDefaults.clampSideFeet(jobSite.widthFeet)
@@ -240,8 +245,9 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             if let bounds = fusedMapBounds ?? jobSite {
                 region = bounds.region
             }
-            statusMessage = "Contour map only — Apple tiles hidden."
+            statusMessage = "Job Site Contour map — Apple live tiles hidden."
         } else {
+            statusMessage = "Live Apple Map underlay — Contour overlay still available."
             refreshStatus()
         }
     }
