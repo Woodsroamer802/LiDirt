@@ -21,6 +21,18 @@ final class DEMGroundSmootherTests: XCTestCase {
         XCTAssertEqual(Double(spike), 10, accuracy: 0.05)
     }
 
+    func testLowBiasCellPrefersMinimum() {
+        var stats = DEMCellStats()
+        stats.addSample(10.0)
+        stats.addSample(10.2)
+        stats.addSample(11.0) // high spike
+        XCTAssertEqual(stats.mean!, 10.4, accuracy: 1e-9)
+        XCTAssertEqual(stats.minZ, 10.0, accuracy: 1e-9)
+        let low = try! XCTUnwrap(stats.lowBiasElevation)
+        XCTAssertLessThan(low, stats.mean!)
+        XCTAssertEqual(low, 0.25 * 10.4 + 0.75 * 10.0, accuracy: 1e-9)
+    }
+
     func testSmoothedPreservesBroadRamp() {
         // Gentle ramp should survive foot-scale smoothing.
         var cells = [Float](repeating: 0, count: 25)

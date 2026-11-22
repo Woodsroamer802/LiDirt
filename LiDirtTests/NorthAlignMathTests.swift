@@ -16,6 +16,55 @@ final class NorthAlignMathTests: XCTestCase {
         XCTAssertEqual(yaw, 0, accuracy: 1e-9)
     }
 
+    func testNorthAlignYawFacingEastLeavesSessionWhenAlreadyENU() {
+        // Session already ENU (+Z north): facing east → arYaw = +π/2, compass = 90°.
+        let yaw = NorthAlignMath.northAlignYaw(
+            arkitForwardYawRadians: .pi / 2,
+            compassHeadingDegrees: 90
+        )
+        XCTAssertEqual(yaw, 0, accuracy: 1e-9)
+    }
+
+    func testNorthAlignCorrectsWhenSessionZIsEast() {
+        // Session +Z points east; user faces north (compass 0). Camera forward is −X
+        // in that frame → arYaw = atan2(-1, 0) = −π/2. Need +90° rotation so +Z → north.
+        let yaw = NorthAlignMath.northAlignYaw(
+            arkitForwardYawRadians: -.pi / 2,
+            compassHeadingDegrees: 0
+        )
+        XCTAssertEqual(yaw, -.pi / 2, accuracy: 1e-9)
+        let northInSession = SIMD3<Float>(-1, 0, 0) // north when +Z was east
+        let aligned = NorthAlignMath.rotateAroundY(northInSession, yawRadians: yaw)
+        XCTAssertEqual(aligned.x, 0, accuracy: 1e-5)
+        XCTAssertEqual(aligned.z, 1, accuracy: 1e-5) // +Z north
+    }
+
+    func testNorthAlignMapsDeviceForwardToCompassBearing() {
+        // Arbitrary session: device forward at 30°, compass says 75° → rotate so forward → 75° ENU.
+        let arYaw = 30.0 * .pi / 180.0
+        let compass = 75.0
+        let yaw = NorthAlignMath.northAlignYaw(
+            arkitForwardYawRadians: arYaw,
+            compassHeadingDegrees: compass
+        )
+        let forward = SIMD3<Float>(Float(sin(arYaw)), 0, Float(cos(arYaw)))
+        let aligned = NorthAlignMath.rotateAroundY(forward, yawRadians: yaw)
+        let enu = NorthAlignMath.enuYaw(xEast: aligned.x, zNorth: aligned.z)
+        XCTAssertEqual(enu, compass * .pi / 180.0, accuracy: 1e-5)
+    }
+
+    func testOldPlusFormulaWouldMirrorHeading() {
+        // Document why `+` was wrong: facing 22.5° would leave a ~45° error and reverse sense.
+        let arYaw = 0.0
+        let compass = 22.5
+        let correct = NorthAlignMath.northAlignYaw(
+            arkitForwardYawRadians: arYaw,
+            compassHeadingDegrees: compass
+        )
+        let wrongPlus = arYaw + compass * .pi / 180.0
+        XCTAssertEqual(abs(wrongPlus - correct), 2 * compass * .pi / 180.0, accuracy: 1e-9)
+    }
+
     func testMetadataIncludesHeadingWhenOriented() throws {
         var cells: [DEMGridKey: DEMCellStats] = [:]
         for iz in 0..<2 {
@@ -37,7 +86,8 @@ final class NorthAlignMathTests: XCTestCase {
             headingSource: "trueHeading",
             northAlignYawRadians: 0.2,
             frameAlignedToNorth: true,
-            disclaimer: ScanOrientationSnapshot.phoneDisclaimer
+            disclaimer: ScanOrientationSnapshot.phoneDisclaimer,
+            northAlignConvention: NorthAlignMath.conventionENUSubtract
         )
         let metadata = ScanPackageWriter.makeMetadata(
             scanId: UUID(),

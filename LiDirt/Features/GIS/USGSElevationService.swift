@@ -31,7 +31,8 @@ struct USGSElevationService: Sendable {
         covering lidar: HeightmapResult,
         origin: CLLocationCoordinate2D,
         cellSizeM: Double = 2.0,
-        paddingM: Double = 12.0
+        paddingM: Double = 12.0,
+        correctionYawRadians: Double = 0
     ) async throws -> HeightmapResult {
         let minX = lidar.bounds.minX - paddingM
         let maxX = lidar.bounds.maxX + paddingM
@@ -43,7 +44,8 @@ struct USGSElevationService: Sendable {
             minZ: minZ,
             maxZ: maxZ,
             cellSizeM: cellSizeM,
-            origin: origin
+            origin: origin,
+            correctionYawRadians: correctionYawRadians
         )
     }
 
@@ -87,7 +89,8 @@ struct USGSElevationService: Sendable {
         minZ: Double,
         maxZ: Double,
         cellSizeM: Double,
-        origin: CLLocationCoordinate2D
+        origin: CLLocationCoordinate2D,
+        correctionYawRadians: Double = 0
     ) async throws -> HeightmapResult {
         let width = max(2, Int(ceil((maxX - minX) / cellSizeM)))
         let height = max(2, Int(ceil((maxZ - minZ) / cellSizeM)))
@@ -101,7 +104,8 @@ struct USGSElevationService: Sendable {
                 let coord = ContourMapGeoref.coordinate(
                     localXMetersEast: x,
                     localZMetersNorth: z,
-                    origin: origin
+                    origin: origin,
+                    correctionYawRadians: correctionYawRadians
                 )
                 points.append((col, row, coord))
             }

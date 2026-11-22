@@ -21,17 +21,39 @@ enum ContourMapGeoref {
     }
 
     /// Convert local DEM meters (+X east, +Z north when north-aligned) to WGS84.
+    /// - Parameter correctionYawRadians: optional extra Y rotation for legacy north-align packages.
     static func coordinate(
         localXMetersEast: Double,
         localZMetersNorth: Double,
-        origin: CLLocationCoordinate2D
+        origin: CLLocationCoordinate2D,
+        correctionYawRadians: Double = 0
     ) -> CLLocationCoordinate2D {
+        let xz = correctedLocal(
+            xEast: localXMetersEast,
+            zNorth: localZMetersNorth,
+            yawRadians: correctionYawRadians
+        )
         let metersPerDegLat = 111_320.0
         let latRad = origin.latitude * .pi / 180.0
         let metersPerDegLon = max(metersPerDegLat * cos(latRad), 1e-6)
         return CLLocationCoordinate2D(
-            latitude: origin.latitude + localZMetersNorth / metersPerDegLat,
-            longitude: origin.longitude + localXMetersEast / metersPerDegLon
+            latitude: origin.latitude + xz.z / metersPerDegLat,
+            longitude: origin.longitude + xz.x / metersPerDegLon
+        )
+    }
+
+    /// Rotate local ground meters around the GPS/AR origin (same as `NorthAlignMath.rotateAroundY`).
+    static func correctedLocal(
+        xEast: Double,
+        zNorth: Double,
+        yawRadians: Double
+    ) -> (x: Double, z: Double) {
+        guard abs(yawRadians) > 1e-12 else { return (xEast, zNorth) }
+        let c = cos(yawRadians)
+        let s = sin(yawRadians)
+        return (
+            x: xEast * c - zNorth * s,
+            z: xEast * s + zNorth * c
         )
     }
 
@@ -53,7 +75,8 @@ enum ContourMapGeoref {
         heightmap: HeightmapResult,
         origin: CLLocationCoordinate2D,
         intervalInches: Double,
-        maxLevels: Int = 80
+        maxLevels: Int = 80,
+        correctionYawRadians: Double = 0
     ) -> [ContourPolyline] {
         let intervalM = intervalInches * 0.0254
         let segs = ContourPreview.localSegments(
@@ -63,14 +86,19 @@ enum ContourMapGeoref {
         )
         // Chain cell-edge segments into longer polylines so MapKit gets dozens of
         // overlays instead of thousands of 2-point lines (major scan→map lag source).
-        return chain(segments: segs, origin: origin)
+        return chain(
+            segments: segs,
+            origin: origin,
+            correctionYawRadians: correctionYawRadians
+        )
     }
 
     /// Stitch collinear-adjacent marching-squares segments per elevation level.
     static func chain(
         segments: [LocalContourSegment],
         origin: CLLocationCoordinate2D,
-        joinEpsilonM: Double = 1e-4
+        joinEpsilonM: Double = 1e-4,
+        correctionYawRadians: Double = 0
     ) -> [ContourPolyline] {
         guard !segments.isEmpty else { return [] }
         var byLevel: [Double: [LocalContourSegment]] = [:]
@@ -84,7 +112,12 @@ enum ContourMapGeoref {
             let chains = stitch(levelSegs, epsilon: joinEpsilonM)
             for (chainIndex, points) in chains.enumerated() where points.count >= 2 {
                 let coords = points.map {
-                    coordinate(localXMetersEast: $0.x, localZMetersNorth: $0.z, origin: origin)
+                    coordinate(
+                        localXMetersEast: $0.x,
+                        localZMetersNorth: $0.z,
+                        origin: origin,
+                        correctionYawRadians: correctionYawRadians
+                    )
                 }
                 out.append(ContourPolyline(
                     id: String(format: "%.6f-%d-%d", level, chainIndex, coords.count),
@@ -165,13 +198,14 @@ enum ContourMapGeoref {
     static func region(
         heightmap: HeightmapResult,
         origin: CLLocationCoordinate2D,
-        paddingFactor: Double = 1.35
+        paddingFactor: Double = 1.35,
+        correctionYawRadians: Double = 0
     ) -> MKCoordinateRegion {
         let corners = [
-            coordinate(localXMetersEast: heightmap.bounds.minX, localZMetersNorth: heightmap.bounds.minZ, origin: origin),
-            coordinate(localXMetersEast: heightmap.bounds.maxX, localZMetersNorth: heightmap.bounds.minZ, origin: origin),
-            coordinate(localXMetersEast: heightmap.bounds.minX, localZMetersNorth: heightmap.bounds.maxZ, origin: origin),
-            coordinate(localXMetersEast: heightmap.bounds.maxX, localZMetersNorth: heightmap.bounds.maxZ, origin: origin)
+            coordinate(localXMetersEast: heightmap.bounds.minX, localZMetersNorth: heightmap.bounds.minZ, origin: origin, correctionYawRadians: correctionYawRadians),
+            coordinate(localXMetersEast: heightmap.bounds.maxX, localZMetersNorth: heightmap.bounds.minZ, origin: origin, correctionYawRadians: correctionYawRadians),
+            coordinate(localXMetersEast: heightmap.bounds.minX, localZMetersNorth: heightmap.bounds.maxZ, origin: origin, correctionYawRadians: correctionYawRadians),
+            coordinate(localXMetersEast: heightmap.bounds.maxX, localZMetersNorth: heightmap.bounds.maxZ, origin: origin, correctionYawRadians: correctionYawRadians)
         ]
         let lats = corners.map(\.latitude)
         let lons = corners.map(\.longitude)

@@ -21,6 +21,25 @@ final class ContourMapGeorefTests: XCTestCase {
         XCTAssertEqual(north.longitude, origin.longitude, accuracy: 1e-8)
     }
 
+    func testLegacyCorrectionRotatesNorthTowardEast() {
+        let origin = CLLocationCoordinate2D(latitude: 40.0, longitude: -80.0)
+        // +90° yaw: +Z (north) → +X (east)
+        let yaw = Double.pi / 2
+        let coord = ContourMapGeoref.coordinate(
+            localXMetersEast: 0,
+            localZMetersNorth: 111.32,
+            origin: origin,
+            correctionYawRadians: yaw
+        )
+        XCTAssertEqual(coord.latitude, origin.latitude, accuracy: 1e-5)
+        XCTAssertGreaterThan(coord.longitude, origin.longitude)
+    }
+
+    func testLegacyHeadingCorrectionMagnitude() {
+        let yaw = NorthAlignMath.legacyPlusHeadingCorrectionYawRadians(headingDegrees: 22.5)
+        XCTAssertEqual(yaw, -45.0 * .pi / 180.0, accuracy: 1e-9)
+    }
+
     func testLocalSegmentsProduceDistinctEndpoints() throws {
         var cells: [DEMGridKey: DEMCellStats] = [:]
         // 3x3 ramp so several contour levels cross cell edges.

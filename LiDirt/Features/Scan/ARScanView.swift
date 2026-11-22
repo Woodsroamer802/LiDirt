@@ -2,6 +2,7 @@ import SwiftUI
 import RealityKit
 import ARKit
 import AVFoundation
+import CoreVideo
 import simd
 
 /// RealityKit `ARView` wrapper. Real ARKit path for device; simulator shows placeholder (no fake DEM).
@@ -113,6 +114,7 @@ struct ARScanView: UIViewRepresentable {
 
             guard allowed else { return }
             ingestMeshAnchors(session: session, timestamp: frame.timestamp)
+            ingestSceneDepth(frame: frame)
         }
 
         func session(_ session: ARSession, didFailWithError error: Error) {
@@ -145,7 +147,8 @@ struct ARScanView: UIViewRepresentable {
                 let source = geometry.vertices
                 let transform = anchor.transform
                 let count = source.count
-                let strideCount = max(1, count / 400)
+                // Denser mesh subsample than before (~1/200 vs 1/400).
+                let strideCount = max(1, count / 200)
                 for i in Swift.stride(from: 0, to: count, by: strideCount) {
                     let local = Self.vertex(source, at: i)
                     let world = transform * SIMD4<Float>(local.x, local.y, local.z, 1)
@@ -154,6 +157,51 @@ struct ARScanView: UIViewRepresentable {
             }
 
             guard !points.isEmpty else { return }
+            Task { @MainActor in
+                pipeline.ingestVertices(points, timestamp: timestamp)
+            }
+        }
+
+        /// Unproject LiDAR `sceneDepth` into world points — denser ground samples than mesh alone.
+        private func ingestSceneDepth(frame: ARFrame) {
+            guard let depthMap = frame.sceneDepth?.depthMap else { return }
+            CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+
+            let width = CVPixelBufferGetWidth(depthMap)
+            let height = CVPixelBufferGetHeight(depthMap)
+            guard width > 0, height > 0,
+                  let base = CVPixelBufferGetBaseAddress(depthMap) else { return }
+
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+            let intrinsics = frame.camera.intrinsics
+            let fx = intrinsics[0, 0]
+            let fy = intrinsics[1, 1]
+            let cx = intrinsics[2, 0]
+            let cy = intrinsics[2, 1]
+            let cameraToWorld = frame.camera.transform
+
+            // Depth maps are smaller than RGB; stride keeps thermal load reasonable.
+            let stride = max(4, min(width, height) / 48)
+            var points: [SIMD3<Float>] = []
+            points.reserveCapacity((width / stride) * (height / stride))
+
+            for row in Swift.stride(from: 0, to: height, by: stride) {
+                let rowPtr = base.advanced(by: row * bytesPerRow).assumingMemoryBound(to: Float32.self)
+                for col in Swift.stride(from: 0, to: width, by: stride) {
+                    let depth = rowPtr[col]
+                    guard depth.isFinite, depth > 0.2, depth < 8.0 else { continue }
+                    // Image Y down; ARKit camera looks along −Z.
+                    let x = (Float(col) - cx) * depth / fx
+                    let y = -((Float(row) - cy) * depth / fy)
+                    let cam = SIMD4<Float>(x, y, -depth, 1)
+                    let world = cameraToWorld * cam
+                    points.append(SIMD3<Float>(world.x, world.y, world.z))
+                }
+            }
+
+            guard !points.isEmpty else { return }
+            let timestamp = frame.timestamp
             Task { @MainActor in
                 pipeline.ingestVertices(points, timestamp: timestamp)
             }

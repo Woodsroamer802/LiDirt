@@ -45,29 +45,41 @@ enum DEMGroundSmoother {
         }
     }
 
-    /// Median filter + optional spike clamp, then a light mean pass in the same neighborhood.
+    /// Median filter + high-spike clamp (favor lows), then a light mean pass.
     static func smooth(
         _ heightmap: HeightmapResult,
         radiusM: Double = defaultRadiusM,
-        spikeThresholdM: Double = defaultSpikeThresholdM
+        spikeThresholdM: Double = defaultSpikeThresholdM,
+        favorLowPoints: Bool = true
     ) -> HeightmapResult {
         let radiusCells = max(1, Int(ceil(radiusM / max(heightmap.cellSizeM, 1e-6))))
         let medians = neighborhoodReduce(heightmap, radiusCells: radiusCells, reducer: .median)
+        let mins = favorLowPoints
+            ? neighborhoodReduce(heightmap, radiusCells: radiusCells, reducer: .minimum)
+            : medians
         var cleaned = heightmap.elevations
         for i in cleaned.indices {
             let original = cleaned[i]
             let median = medians[i]
+            let localMin = mins[i]
             if original.isNaN || median.isNaN { continue }
-            if abs(original - median) > Float(spikeThresholdM) {
-                cleaned[i] = median
+            var value = original
+            // Cut highs above the local median; leave lows alone (bare-ground bias).
+            if value > median + Float(spikeThresholdM) {
+                value = median
             }
+            if favorLowPoints, !localMin.isNaN {
+                // Pull toward neighborhood low so grass / junk highs don't dominate.
+                value = min(value, 0.35 * value + 0.65 * localMin)
+            }
+            cleaned[i] = value
         }
         let cleanedMap = replacingElevations(heightmap, cleaned)
-        let means = neighborhoodReduce(cleanedMap, radiusCells: radiusCells, reducer: .mean)
+        let means = neighborhoodReduce(cleanedMap, radiusCells: max(1, radiusCells / 2), reducer: .mean)
         return replacingElevations(cleanedMap, means)
     }
 
-    private enum Reducer { case median, mean }
+    private enum Reducer { case median, mean, minimum }
 
     private static func neighborhoodReduce(
         _ heightmap: HeightmapResult,
@@ -102,6 +114,8 @@ enum DEMGroundSmoother {
                 case .mean:
                     let sum = window.reduce(0, +)
                     out[idx] = sum / Float(window.count)
+                case .minimum:
+                    out[idx] = window.min() ?? .nan
                 }
             }
         }

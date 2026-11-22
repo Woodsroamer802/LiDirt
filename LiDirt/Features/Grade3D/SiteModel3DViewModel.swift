@@ -32,8 +32,10 @@ final class SiteModel3DViewModel: ObservableObject {
     )
 
     init(heightmap: HeightmapResult) {
-        self.existingHeightmap = heightmap
-        self.proposedResult = ProposedGradeApplicator.apply(existing: heightmap, cutouts: [])
+        // Favor low points so the 3D pad isn't spiked by grass / high outliers.
+        let prepared = DEMGroundSmoother.smooth(heightmap, favorLowPoints: true)
+        self.existingHeightmap = prepared
+        self.proposedResult = ProposedGradeApplicator.apply(existing: prepared, cutouts: [])
     }
 
     var selectedCutout: GradeCutout? {

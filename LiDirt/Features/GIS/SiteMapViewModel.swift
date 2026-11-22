@@ -116,7 +116,11 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         } else if let lat = orientation.latitude, let lon = orientation.longitude {
             let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
             if let heightmap {
-                region = ContourMapGeoref.region(heightmap: heightmap, origin: origin)
+                region = ContourMapGeoref.region(
+                    heightmap: heightmap,
+                    origin: origin,
+                    correctionYawRadians: orientation.mapLegacyCorrectionYawRadians
+                )
                 didFitScanRegion = true
             } else {
                 region = MKCoordinateRegion(
@@ -338,7 +342,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
               let lon = orientation.longitude else { return nil }
         return JobSiteBounds.from(
             heightmap: raw,
-            origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            origin: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            correctionYawRadians: orientation.mapLegacyCorrectionYawRadians
         )
     }
 
@@ -364,7 +369,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         }
         let bounds = JobSiteBounds.from(
             heightmap: heightmap,
-            origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            origin: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            correctionYawRadians: orientation.mapLegacyCorrectionYawRadians
         )
         syncOutlineDimensions(from: bounds)
         linkSquareSides = abs(bounds.sideFeetNS - bounds.sideFeetEW) < 1.5
@@ -384,7 +390,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         let scanFootprint = JobSiteBounds.from(
             heightmap: heightmap,
             origin: origin,
-            paddingFactor: 1.0
+            paddingFactor: 1.0,
+            correctionYawRadians: orientation.mapLegacyCorrectionYawRadians
         )
         // Keep adjustable size, but don't start smaller than the scan pad.
         var width = JobSiteDefaults.clampSideFeet(outlineWidthFeet)
@@ -418,7 +425,12 @@ final class SiteMapViewModel: NSObject, ObservableObject {
         guard let lat = orientation.latitude, let lon = orientation.longitude else { return nil }
         let origin = CLLocationCoordinate2D(latitude: lat, longitude: lon)
         guard let heightmap = lidarHeightmap ?? fusedResult?.heightmap else { return origin }
-        return JobSiteBounds.from(heightmap: heightmap, origin: origin, paddingFactor: 1.0).center
+        return JobSiteBounds.from(
+            heightmap: heightmap,
+            origin: origin,
+            paddingFactor: 1.0,
+            correctionYawRadians: orientation.mapLegacyCorrectionYawRadians
+        ).center
     }
 
     var hasScannedSurface: Bool {
@@ -868,7 +880,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             do {
                 let foundation = try await service.fetchFoundationDEM(
                     covering: lidar,
-                    origin: origin
+                    origin: origin,
+                    correctionYawRadians: orientation.mapLegacyCorrectionYawRadians
                 )
                 if Task.isCancelled { return }
                 fuseProgress = "Blending LiDAR into foundation…"
@@ -941,11 +954,13 @@ final class SiteMapViewModel: NSObject, ObservableObject {
 
             let lines: [ContourMapGeoref.ContourPolyline]
             if showLines {
+                let correctionYaw = orientation.mapLegacyCorrectionYawRadians
                 lines = await Task.detached(priority: .userInitiated) {
                     ContourMapGeoref.polylines(
                         heightmap: prepared,
                         origin: origin,
-                        intervalInches: interval
+                        intervalInches: interval,
+                        correctionYawRadians: correctionYaw
                     )
                 }.value
             } else {
@@ -954,6 +969,7 @@ final class SiteMapViewModel: NSObject, ObservableObject {
             if Task.isCancelled { return }
 
             let buildings = showBuildings ? buildingFootprints : []
+            let correctionYaw = orientation.mapLegacyCorrectionYawRadians
             var rendered: FusedSiteMapRenderer.RenderedMap?
             if buildSurface, let renderBounds {
                 rendered = await Task.detached(priority: .userInitiated) {
@@ -963,7 +979,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                         bounds: renderBounds,
                         intervalInches: interval,
                         drawContours: showLines,
-                        buildings: buildings
+                        buildings: buildings,
+                        correctionYawRadians: correctionYaw
                     )
                 }.value
             }
@@ -1070,7 +1087,8 @@ final class SiteMapViewModel: NSObject, ObservableObject {
                 } else if let lat = orientation.latitude, let lon = orientation.longitude {
                     region = ContourMapGeoref.region(
                         heightmap: fused.heightmap,
-                        origin: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                        origin: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                        correctionYawRadians: orientation.mapLegacyCorrectionYawRadians
                     )
                     didFitScanRegion = true
                 }

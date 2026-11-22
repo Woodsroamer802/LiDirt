@@ -20,6 +20,17 @@ struct ScanOrientationSnapshot: Equatable, Sendable {
     static let phoneDisclaimer =
         "Phone GPS and compass orientation is approximate (meters-class GNSS, degrees-class heading noise). Not survey-grade north or absolute elevation."
 
+    /// Metadata convention written with this package, if known (`enu_subtract` = fixed formula).
+    var northAlignConvention: String?
+
+    /// Yaw to apply when placing this scan on the map if it was captured with the old `θ + heading` bug.
+    var mapLegacyCorrectionYawRadians: Double {
+        guard frameAlignedToNorth,
+              northAlignConvention != NorthAlignMath.conventionENUSubtract,
+              let heading = headingDegrees else { return 0 }
+        return NorthAlignMath.legacyPlusHeadingCorrectionYawRadians(headingDegrees: heading)
+    }
+
     static var unavailable: ScanOrientationSnapshot {
         ScanOrientationSnapshot(
             method: "none",
@@ -31,13 +42,23 @@ struct ScanOrientationSnapshot: Equatable, Sendable {
             headingSource: "unavailable",
             northAlignYawRadians: nil,
             frameAlignedToNorth: false,
-            disclaimer: phoneDisclaimer
+            disclaimer: phoneDisclaimer,
+            northAlignConvention: nil
         )
     }
 }
 
 /// Pure math helpers for north alignment (unit-testable).
 enum NorthAlignMath {
+    /// Written into scan metadata for packages built with the correct yaw formula.
+    static let conventionENUSubtract = "enu_subtract"
+
+    /// Extra yaw to apply to already-binned DEM (x,z) when the package used the old `θ + heading` formula.
+    /// Correcting points rotated by (θ+H) into (θ−H) is a further rotation of −2H around +Y.
+    static func legacyPlusHeadingCorrectionYawRadians(headingDegrees: Double) -> Double {
+        -2.0 * headingDegrees * .pi / 180.0
+    }
+
     /// Device forward yaw in ARKit XZ: atan2(forward.x, forward.z), radians.
     static func arkitForwardYaw(cameraTransform: simd_float4x4) -> Double {
         // Camera looks down −Z in local space; world forward is −column2.
@@ -53,16 +74,18 @@ enum NorthAlignMath {
         return Double(atan2(n.x, n.z))
     }
 
-    /// Yaw that maps compass-forward to +Z-north after rotation around Y.
-    /// `compassHeadingDegrees` is Core Location true/magnetic heading (clockwise from north).
+    /// Yaw that rotates ARKit points so device-forward lands on compass bearing in ENU
+    /// (+Z north, +X east). `compassHeadingDegrees` is Core Location heading (clockwise from north).
+    ///
+    /// `rotateAroundY` maps atan2(x,z) angle θ → θ − yaw. We need θ_ar − yaw = compassRad,
+    /// so yaw = θ_ar − compassRad. (The old `+` form mirrored the heading and typically
+    /// left scans ~2×heading off — often ~40–45° — with an apparent N–S flip.)
     static func northAlignYaw(
         arkitForwardYawRadians: Double,
         compassHeadingDegrees: Double
     ) -> Double {
         let compassRad = compassHeadingDegrees * .pi / 180.0
-        // Compass heading is clockwise from north; ARKit yaw is CCW from +Z.
-        // Align device-forward with compass bearing, then rotate world so north → +Z.
-        return arkitForwardYawRadians + compassRad
+        return arkitForwardYawRadians - compassRad
     }
 
     static func rotateAroundY(_ point: SIMD3<Float>, yawRadians: Double) -> SIMD3<Float> {
@@ -73,6 +96,11 @@ enum NorthAlignMath {
             point.y,
             point.x * s + point.z * c
         )
+    }
+
+    /// Angle of a horizontal vector in the ENU frame (atan2(east, north)).
+    static func enuYaw(xEast: Float, zNorth: Float) -> Double {
+        Double(atan2(xEast, zNorth))
     }
 }
 
@@ -189,7 +217,8 @@ final class ScanOrientationService: NSObject, ObservableObject {
             headingSource: headingSource,
             northAlignYawRadians: yaw,
             frameAlignedToNorth: yaw != nil,
-            disclaimer: ScanOrientationSnapshot.phoneDisclaimer
+            disclaimer: ScanOrientationSnapshot.phoneDisclaimer,
+            northAlignConvention: yaw != nil ? NorthAlignMath.conventionENUSubtract : nil
         )
     }
 
